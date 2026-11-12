@@ -1,0 +1,2247 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>광영고 이수 과목 검증기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
+<style>
+/* 레이아웃: 좌측 학기별 이수 체크 · 우측 고정 검증 결과 패널 (모바일은 결과 요약 → 입력 → 상세 순) */
+:root {
+  --bg: #f3f4f1;
+  --surface: #ffffff;
+  --ink: #1d2421;
+  --muted: #5f6b66;
+  --line: #d9ddd8;
+  --accent: #23584a;
+  --accent-soft: #e1ece7;
+  --ok: #1f7a4d;
+  --ok-soft: #e2f3e9;
+  --warn: #a35f00;
+  --warn-soft: #fbefdc;
+  --bad: #b23a2e;
+  --bad-soft: #f9e3e0;
+  --font-display: "Gowun Batang", "Nanum Myeongjo", serif;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141917; --surface: #1c2320; --ink: #e5ebe8; --muted: #9aa8a2; --line: #303a36;
+    --accent: #7cc4ad; --accent-soft: #23342e;
+    --ok: #6fd19d; --ok-soft: #1c3428; --warn: #f0b45c; --warn-soft: #3a2e1a; --bad: #f08a7e; --bad-soft: #3d2320;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141917; --surface: #1c2320; --ink: #e5ebe8; --muted: #9aa8a2; --line: #303a36;
+  --accent: #7cc4ad; --accent-soft: #23342e;
+  --ok: #6fd19d; --ok-soft: #1c3428; --warn: #f0b45c; --warn-soft: #3a2e1a; --bad: #f08a7e; --bad-soft: #3d2320;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+button, input, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+
+header { padding: 28px 24px 18px; max-width: 1240px; margin: 0 auto; display: grid; gap: 14px; }
+.school { color: var(--muted); font-size: 13px; letter-spacing: .02em; }
+h1 { font-family: var(--font-display); font-size: 28px; line-height: 1.25; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 3px; gap: 3px; }
+.seg button { border: 0; background: transparent; padding: 7px 14px; border-radius: 7px; cursor: pointer; font-weight: 500; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--surface); }
+.range { color: var(--muted); font-size: 14px; }
+.range b { color: var(--ink); font-weight: 600; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px 12px; cursor: pointer; font-size: 14px; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.btn.small { padding: 4px 9px; font-size: 13px; }
+
+.example { max-width: 1240px; margin: 0 auto 4px; padding: 0 24px; }
+.example div { background: var(--warn-soft); color: var(--ink); border-left: 3px solid var(--warn); padding: 9px 14px; border-radius: 6px; font-size: 14px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+main { max-width: 1240px; margin: 0 auto; padding: 12px 24px 48px; display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 24px; align-items: start; }
+.inputs { display: grid; gap: 18px; }
+aside { position: sticky; top: 16px; display: grid; gap: 14px; max-height: calc(100vh - 32px); overflow-y: auto; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.sem { padding: 0; overflow: hidden; }
+.sem-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.sem-head h2 { font-size: 18px; font-weight: 700; }
+.sem-head .meta { color: var(--muted); font-size: 13px; }
+.sem-body { padding: 14px 18px 18px; display: grid; gap: 16px; }
+.block-title { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .04em; margin-bottom: 8px; display: flex; justify-content: space-between; gap: 8px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; }
+.chk { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; min-height: 40px; }
+.chk:hover { border-color: var(--accent); }
+.chk input { width: 17px; height: 17px; accent-color: var(--accent); margin: 0; flex: none; }
+.chk .nm { flex: 1; font-size: 14px; }
+.chk .cr { color: var(--muted); font-size: 12px; }
+.chk .ar { color: var(--muted); font-size: 11px; display: block; line-height: 1.2; }
+.chk.on { background: var(--accent-soft); border-color: var(--accent); }
+.chk.missing { border-color: var(--bad); border-style: dashed; }
+.pair { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 0; }
+.pair .lbl { font-size: 14px; min-width: 92px; color: var(--muted); }
+.pair .seg button { padding: 5px 12px; font-size: 14px; }
+.pair.missing .seg { border-color: var(--bad); border-style: dashed; }
+.counter { font-weight: 600; }
+.counter.ok { color: var(--ok); } .counter.bad { color: var(--bad); }
+
+.summary { padding: 18px; display: grid; gap: 6px; border-left: 5px solid var(--bad); }
+.summary.pass { border-left-color: var(--ok); }
+.summary .verdict { font-size: 22px; font-weight: 700; font-family: var(--font-display); }
+.summary.pass .verdict { color: var(--ok); }
+.summary.fail .verdict { color: var(--bad); }
+.summary .sub { color: var(--muted); font-size: 14px; }
+.summary .actions { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+
+.panel { padding: 16px 18px; }
+.panel h3 { font-size: 15px; margin-bottom: 10px; }
+.issues { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.issues li { display: grid; grid-template-columns: auto 1fr; gap: 8px; font-size: 14px; padding: 7px 10px; border-radius: 7px; background: var(--bad-soft); }
+.issues li.w { background: var(--warn-soft); }
+.issues .tag { font-size: 12px; font-weight: 600; padding: 1px 7px; border-radius: 99px; background: var(--surface); color: var(--bad); align-self: start; white-space: nowrap; }
+.issues li.w .tag { color: var(--warn); }
+.none { color: var(--ok); font-size: 14px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th, td { text-align: left; padding: 7px 4px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; }
+td.r, th.r { text-align: right; }
+.bar { height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; margin-top: 4px; position: relative; }
+.bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
+.bar b { position: absolute; top: -2px; width: 2px; height: 10px; background: var(--ink); opacity: .55; }
+.pill { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+.pill.na { background: var(--accent-soft); color: var(--muted); }
+.legend { color: var(--muted); font-size: 12px; margin-top: 8px; }
+
+details.paste { padding: 14px 18px; }
+details.paste summary { cursor: pointer; font-weight: 600; }
+details.paste p { color: var(--muted); font-size: 13.5px; margin: 8px 0; }
+textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: var(--bg); resize: vertical; }
+.paste-row { display: flex; gap: 10px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+.paste-msg { font-size: 13px; color: var(--muted); }
+.notes { color: var(--muted); font-size: 12.5px; line-height: 1.6; padding: 0 2px; }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 8px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.toast.show { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+
+
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-top: 4px; flex-wrap: wrap; }
+.tabs button { border: 0; background: transparent; padding: 10px 14px; cursor: pointer; font-weight: 600; color: var(--muted); border-bottom: 3px solid transparent; margin-bottom: -1px; }
+.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 12px 24px 48px; display: grid; gap: 16px; }
+.controls-wrap { padding-bottom: 4px; }
+.drop { display: grid; gap: 6px; padding: 26px 22px; border: 2px dashed var(--line); cursor: pointer; text-align: left; }
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.drop:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.drop-title { font-weight: 700; font-size: 17px; }
+.drop-sub { color: var(--muted); font-size: 14px; }
+.drop-sub.privacy { color: var(--ok); }
+.howto ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; max-width: 78ch; }
+.row-between { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.row-between h3 { margin: 0; }
+.tablebox { overflow-x: auto; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.tile { padding: 14px 16px; border-left: 4px solid var(--line); }
+.tile .k { color: var(--muted); font-size: 13px; }
+.tile .v { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.tile .s { color: var(--muted); font-size: 12.5px; }
+.tile.bad { border-left-color: var(--bad); } .tile.bad .v { color: var(--bad); }
+.tile.warn { border-left-color: var(--warn); } .tile.warn .v { color: var(--warn); }
+.tile.ok { border-left-color: var(--ok); } .tile.ok .v { color: var(--ok); }
+.hint { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 6px; }
+.issues li.cw { background: var(--accent-soft); }
+.issues li.cw .tag { color: var(--accent); }
+.inline { display: inline-flex; gap: 8px; align-items: center; font-size: 14px; margin-top: 10px; cursor: pointer; }
+.inline input { accent-color: var(--accent); width: 16px; height: 16px; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.filters select, .filters input[type=search] { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px 10px; font-size: 14px; }
+.filters input[type=search] { min-width: 140px; }
+.spacer { flex: 1; }
+table.stu td { vertical-align: top; }
+table.stu tr.srow { cursor: pointer; }
+table.stu tr.srow:hover td { background: var(--accent-soft); }
+table.stu tr.srow:focus-visible td { background: var(--accent-soft); }
+.why { display: grid; gap: 3px; font-size: 13.5px; }
+.why .e { color: var(--bad); }
+.why .w { color: var(--warn); }
+.why .c { color: var(--muted); }
+.tagx { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 99px; background: var(--warn-soft); color: var(--warn); margin-left: 6px; white-space: nowrap; }
+tr.detail td { background: var(--bg); padding: 14px; }
+.dgrid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; }
+.dgrid h4 { margin: 0 0 6px; font-size: 13px; color: var(--muted); }
+.semlist { display: grid; gap: 8px; font-size: 13px; }
+.semlist div b { display: inline-block; min-width: 56px; }
+.semlist .x { color: var(--warn); }
+.empty { color: var(--muted); padding: 18px 4px; }
+@media (max-width: 760px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dgrid { grid-template-columns: 1fr; } }
+@media (max-width: 480px) { .wrap { padding-left: 16px; padding-right: 16px; } }
+
+.titlebar { flex-wrap: wrap; }
+.seg.theme button { padding: 5px 11px; font-size: 13px; }
+.plan-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.plan-sem { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 6px; align-content: start; }
+.plan-sem h4 { margin: 0; font-size: 14px; display: flex; justify-content: space-between; }
+.plan-sem ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 13.5px; }
+.plan-sem li { display: flex; justify-content: space-between; gap: 8px; }
+.plan-sem li span:last-child { color: var(--muted); white-space: nowrap; }
+.plan-sem .grp { color: var(--muted); font-size: 12.5px; border-top: 1px dashed var(--line); padding-top: 6px; }
+.plan-sem .grp b { color: var(--ink); font-weight: 600; }
+.reqlist { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.reqlist span { font-size: 13px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 99px; }
+.src { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.src.up { background: var(--ok-soft); color: var(--ok); }
+
+.muted { color: var(--muted); }
+.tr-how { margin: 0; padding-left: 20px; display: grid; gap: 5px; max-width: 86ch; }
+.tr-list { display: grid; gap: 12px; }
+.tr-card { padding: 0; overflow: hidden; border-left: 5px solid var(--line); }
+.tr-card.bad { border-left-color: var(--bad); }
+.tr-card.warn { border-left-color: var(--warn); }
+.tr-card.ok { border-left-color: var(--ok); }
+.tr-head { display: flex; justify-content: space-between; align-items: center; gap: 10px 16px; padding: 12px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.tr-id, .tr-v { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tr-id b { font-size: 16px; }
+.tr-v .muted { font-size: 13.5px; }
+.tagx.soft { background: var(--accent-soft); color: var(--accent); }
+.tr-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 0.95fr); gap: 18px; padding: 14px 16px 16px; }
+.tr-col h4 { margin: 0 0 6px; font-size: 12.5px; color: var(--muted); font-weight: 600; letter-spacing: .02em; }
+.tr-ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 13.5px; }
+.tr-ul .sub { font-size: 13px; margin-top: 1px; }
+.tr-ul .sub.ok { color: var(--ok); } .tr-ul .sub.warn { color: var(--warn); } .tr-ul .sub.bad { color: var(--bad); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 12.5px; padding: 2px 9px; border-radius: 99px; border: 1px solid var(--line); }
+.chip.bad { border-color: var(--bad); color: var(--bad); }
+table.mini { font-size: 13px; }
+table.mini td { padding: 4px 2px; }
+table.mini tr.same td { color: var(--muted); }
+table.mini td.neg { color: var(--bad); font-weight: 600; }
+table.mini td.pos { color: var(--ok); font-weight: 600; }
+.why .co { color: var(--accent); }
+.cotag { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; margin: 3px 0 0 4px; }
+.cstats { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.cstat { display: inline-flex; align-items: baseline; gap: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; font-size: 13px; }
+.cstat .num { font-size: 18px; font-weight: 700; }
+.cstat.co .num { color: var(--accent); } .cstat.w .num { color: var(--warn); } .cstat.e .num { color: var(--bad); }
+td.small { font-size: 12.5px; color: var(--muted); }
+table.stu th, table.stu td:nth-child(1), table.stu td:nth-child(3) { white-space: nowrap; }
+
+.modal-back { position: fixed; inset: 0; background: rgb(0 0 0 / .38); display: grid; place-items: center; padding: 16px; z-index: 50; }
+.modal-back[hidden] { display: none; }
+.modal { width: min(520px, 100%); padding: 20px 22px; display: grid; gap: 12px; max-height: calc(100% - 32px); overflow-y: auto; }
+.modal h3 { font-size: 18px; }
+.small-p { margin: 0; font-size: 13.5px; }
+.rp-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.rp-row label { font-weight: 600; font-size: 14px; min-width: 40px; }
+.rp-row select { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px 10px; font-size: 14px; }
+.rp-set { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px 12px; margin: 0; display: grid; gap: 7px; }
+.rp-set legend { font-size: 13px; font-weight: 600; color: var(--muted); padding: 0 4px; }
+.rp-set label { display: flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; }
+.rp-set input, .modal .inline input { accent-color: var(--accent); width: 16px; height: 16px; }
+.modal .inline { margin-top: 0; }
+.rp-msg { font-size: 13px; color: var(--warn); min-height: 1em; }
+.rp-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+@media (max-width: 980px) { .tr-body { grid-template-columns: 1fr; } }
+
+@media (max-width: 980px) {
+  main { grid-template-columns: 1fr; }
+  aside { position: static; max-height: none; overflow: visible; display: contents; }
+  .summary { order: -1; }
+  .inputs { order: 0; }
+  .panel, .notes { order: 1; }
+}
+@media (max-width: 480px) {
+  header, main, .example { padding-left: 16px; padding-right: 16px; }
+  h1 { font-size: 23px; }
+  .grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="school">광영고등학교 교육과정 학점 배당표 기준</div>
+  <div class="row-between titlebar">
+    <h1>이수 과목 검증기</h1>
+    <div class="seg theme" role="group" aria-label="화면 테마" id="themeSeg">
+      <button type="button" data-theme-set="system">시스템</button>
+      <button type="button" data-theme-set="light">밝게</button>
+      <button type="button" data-theme-set="dark">어둡게</button>
+    </div>
+  </div>
+  <nav class="tabs" role="tablist" aria-label="검사 방식">
+    <button type="button" role="tab" id="tabBatch" data-view="batch">성적 파일로 일괄 검사</button>
+    <button type="button" role="tab" id="tabTransfer" data-view="transfer">전입생 검증</button>
+    <button type="button" role="tab" id="tabManual" data-view="manual">학생 1명 직접 체크</button>
+    <button type="button" role="tab" id="tabPlans" data-view="plans">학점 배당표</button>
+  </nav>
+</header>
+
+<div id="batchView" class="view">
+  <div class="wrap">
+    <label class="drop card" id="drop" for="fileInput">
+      <input type="file" id="fileInput" accept=".xlsx,.xls" multiple>
+      <span class="drop-title">나이스 성적 엑셀 파일을 끌어다 놓거나 눌러서 고르세요</span>
+      <span class="drop-sub">학교생활기록부 교과학습발달상황 다운로드 파일(.xlsx) · 한 반이든 여러 반이든 한꺼번에 올릴 수 있어요. 이미 올린 파일에 더해지고, 학점 배당표 파일을 섞어 넣으면 배당표로 알아서 적용해요.</span>
+      <span class="drop-sub privacy">파일은 이 브라우저 안에서만 읽어요. 어디에도 업로드하거나 저장하지 않습니다.</span>
+    </label>
+
+    <div id="batchEmpty" class="card panel howto">
+      <h3>검사 방법</h3>
+      <ol>
+        <li>파일 위쪽의 <b>'O학년 O반'</b>과 출력일로 입학년도를 정해 해당 배당표를 적용해요. (2026학년도 기준 1학년 → 2026 입학, 2학년 → 2025 입학) 배당표는 '학점 배당표' 탭에서 올리거나 바꿀 수 있어요.</li>
+        <li>검사 범위는 1학년은 1학년 1·2학기, 2학년은 1학년 1학기부터 2학년 1학기까지예요. 단, <b>파일에 아직 성적이 없는 학기는 빼고</b> 검사해요.</li>
+        <li>일반 교과, 체육·예술/과학탐구실험, 교양 세 구역을 모두 읽어 학교지정 과목, 음악·미술 같은 교차 이수 과목, 학년선택 택4·택1, 국·수·영 15학점 상한을 확인해요.</li>
+        <li><b>학점으로 판정해요.</b> 학생마다 검사 범위 안에서 이수한 학점(성적 파일의 학점 합, 미이수 처리 과목 제외)을 같은 학년 다른 학생들이 가장 많이 이수한 학점과 비교해, 적으면 <b>학점 미충족</b>이에요. 학점은 채웠지만 배당표 과목이 빠져 있으면 <b>과목 확인 필요</b>로 따로 보여 줘요.</li>
+        <li>같은 반 80% 이상이 똑같이 빠진 과목은 성적 미입력이나 반별 편성 차이일 수 있어 따로 모아 보여 줘요.</li>
+      </ol>
+    </div>
+
+    <div id="batchResult" hidden>
+      <div class="card panel">
+        <div class="row-between"><h3>올린 파일</h3><button type="button" class="btn small" id="clearFiles">모두 지우기</button></div>
+        <div class="tablebox"><table id="fileTable"></table></div>
+      </div>
+
+      <div class="tiles" id="tiles"></div>
+
+      <div class="card panel" id="cwPanel">
+        <div class="row-between"><h3>기준 학점 <span class="hint">같은 학년 학생들이 가장 많이 이수한 학점(최빈값)보다 적으면 미충족</span></h3>
+          <div class="seg" role="group" aria-label="기준" id="basisSel">
+            <button type="button" data-basis="peer" aria-pressed="true">다른 학생 기준</button>
+            <button type="button" data-basis="plan" aria-pressed="false">배당표 기준</button>
+          </div></div>
+        <div class="tablebox"><table id="baseTable"></table></div>
+        <h3 style="margin-top:16px">시수 차이 원인 <span class="hint">기준 학점과 다른 학생 중 공동교육과정·온라인학교 과목 때문인 경우를 따로 모았어요</span></h3>
+        <div class="cstats" id="coopSum"></div>
+        <div id="coopWrap"><div class="tablebox"><table id="coopTable"></table></div></div>
+        <div id="cwWrap">
+          <h3 style="margin-top:14px">반 전체 공통으로 빠진 과목 <span class="hint">성적 미입력이거나 반별 편성 차이일 수 있어요</span></h3>
+          <ul class="issues" id="cwList"></ul>
+        </div>
+      </div>
+
+      <div class="card panel">
+        <div class="filters">
+          <div class="seg" role="group" aria-label="상태 필터" id="stFilter">
+            <button type="button" data-st="issue" aria-pressed="true">미충족·확인 필요</button>
+            <button type="button" data-st="fail" aria-pressed="false">학점 미충족만</button>
+            <button type="button" data-st="diff" aria-pressed="false">시수 다름</button>
+            <button type="button" data-st="coop" aria-pressed="false">공동교육과정·온라인</button>
+            <button type="button" data-st="all" aria-pressed="false">전체</button>
+          </div>
+          <select id="gradeSel" aria-label="학년"></select>
+          <select id="clsSel" aria-label="반"></select>
+          <input type="search" id="q" placeholder="이름 검색" aria-label="이름 검색">
+          <span class="spacer"></span>
+          <button type="button" class="btn" id="copyTsv">표 복사</button>
+          <button type="button" class="btn" id="repBtn">보고서 저장 (HTML·PDF)</button>
+          <button type="button" class="btn primary" id="saveXlsx" hidden>결과 엑셀 저장</button>
+        </div>
+        <div class="tablebox"><table class="stu" id="stuTable"></table></div>
+        <div class="legend" id="stuCount"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="transferView" class="view" hidden>
+  <div class="wrap">
+    <div class="card panel" id="trEmpty">
+      <h3>성적 파일을 먼저 올려 주세요</h3>
+      <p class="muted">전입생 검증은 '성적 파일로 일괄 검사' 탭에 올린 파일로 같은 학년 학생들과 비교해요.</p>
+      <button type="button" class="btn primary" id="trGoBatch">성적 파일 올리러 가기</button>
+    </div>
+    <div id="trResult" hidden>
+      <div class="card panel howto">
+        <h3>이렇게 찾아요</h3>
+        <ul class="tr-how">
+          <li><b>비고 '전입학'</b>이 붙은 과목이 있으면 전입생으로 확정해요.</li>
+          <li>비고가 없어도, 같은 학년에서 <b>3% 미만만 들은 과목</b>(공동교육과정·온라인학교·타기관 과목은 제외)이 있거나 <b>같은 과목인데 학점이 다른 과목이 2개 이상</b>이면 전입 추정으로 봐요.</li>
+          <li>빠진 배당표 과목마다 <b>같은 교과(군)</b>에서 들은 배당표 외 과목을 대체 후보로 짝지어, 학점까지 채워지는지 봐요. 대체 인정 여부는 학교가 판단해 주세요.</li>
+        </ul>
+      </div>
+      <div class="tiles" id="trTiles"></div>
+      <div class="card panel">
+        <div class="filters">
+          <div class="seg" role="group" aria-label="판정 필터" id="trVerdict">
+            <button type="button" data-v="all" aria-pressed="true">전체</button>
+            <button type="button" data-v="need" aria-pressed="false">보충 이수 확인</button>
+            <button type="button" data-v="sub" aria-pressed="false">대체 인정 시 충족</button>
+            <button type="button" data-v="ok" aria-pressed="false">충족</button>
+          </div>
+          <select id="trGrade" aria-label="학년"></select>
+          <span class="spacer"></span>
+          <button type="button" class="btn" id="trCopy">표 복사</button>
+          <button type="button" class="btn" id="trRepBtn">보고서 저장 (HTML·PDF)</button>
+          <button type="button" class="btn primary" id="trSave" hidden>엑셀 저장</button>
+        </div>
+        <div class="legend" id="trCount"></div>
+      </div>
+      <div class="tr-list" id="trList"></div>
+    </div>
+  </div>
+</div>
+
+<div id="plansView" class="view" hidden>
+  <div class="wrap">
+    <label class="drop card" id="planDrop" for="planInput">
+      <input type="file" id="planInput" accept=".xlsx,.xls" multiple>
+      <span class="drop-title">학점 배당표 엑셀을 끌어다 놓거나 눌러서 고르세요</span>
+      <span class="drop-sub">시트 이름이나 위쪽에 입학년도(예: 2027입학생, 2027학년도 입학)가 있고 '과목', '운영 학점', '1학년~3학년' 열이 있는 배당표 양식이면 읽을 수 있어요. 같은 입학년도 배당표가 이미 있으면 새로 올린 것으로 바뀌어요.</span>
+      <span class="drop-sub">성적 파일 탭에 배당표를 함께 끌어다 놓아도 자동으로 알아봐요.</span>
+    </label>
+    <div class="card panel">
+      <h3>적용 중인 배당표</h3>
+      <div class="tablebox"><table id="planTable"></table></div>
+      <div class="legend" id="planNote"></div>
+    </div>
+    <div class="card panel" id="planPreview" hidden></div>
+  </div>
+</div>
+
+<div id="manualView" class="view" hidden>
+<div class="wrap controls-wrap">
+  <div class="controls">
+    <div class="seg" role="group" aria-label="학년 선택" id="gradeSeg"></div>
+    <span class="range" id="range"></span>
+  </div>
+</div>
+<div class="wrap" id="manualEmpty" hidden><div class="card panel">지금 학년에 맞는 배당표가 없어요. '학점 배당표' 탭에서 올려 주세요.</div></div>
+<div id="manualMain">
+<div class="example" id="exampleBar" hidden>
+  <div><span>지금 보이는 체크 상태는 <b>예시</b>예요. 초기화한 뒤 본인이 이수한 과목을 체크하세요.</span>
+  <button type="button" class="btn small" id="clearBtn2">체크 모두 지우기</button></div>
+</div>
+<main>
+  <section class="inputs" aria-label="학기별 이수 과목 입력"><div class="inputs" id="inputs"></div><div id="pasteHost"></div></section>
+  <aside>
+    <div class="card summary" id="summary"></div>
+    <div class="card panel"><h3>확인이 필요한 항목</h3><ul class="issues" id="issues"></ul></div>
+    <div class="card panel"><h3>필수 이수 학점 (교과별)</h3><table id="reqTable"></table>
+      <div class="legend">이수 = 체크한 학점 · 기준 = 검사 범위 학기까지 배당표상 학점 · 졸업 = 졸업 필수 이수 학점. 막대의 눈금선이 현재 기준 위치예요.</div></div>
+    <div class="card panel"><h3>학기별 교과 이수 학점</h3><table id="semTable"></table></div>
+    <div class="notes" id="notes"></div>
+  </aside>
+</main>
+</div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="modal-back" id="rpBack" hidden>
+  <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="rpTitle">
+    <h3 id="rpTitle">점검 결과 보고서 저장</h3>
+    <p class="muted small-p">공유하기 좋게 정리한 보고서를 HTML이나 PDF 파일로 저장해요. HTML은 브라우저에서 열고, PDF는 A4로 인쇄하기 좋아요.</p>
+    <div class="rp-row">
+      <label for="rpGrade">범위</label>
+      <select id="rpGrade"></select>
+      <select id="rpCls" aria-label="반"></select>
+    </div>
+    <fieldset class="rp-set">
+      <legend>넣을 항목</legend>
+      <label><input type="checkbox" id="rpSum" checked> 요약 · 검사 범위 · 기준 학점 · 반 전체 공통 누락</label>
+      <label><input type="checkbox" id="rpFail" checked> 학점 미충족 학생</label>
+      <label><input type="checkbox" id="rpWarn" checked> 과목 확인 필요 학생</label>
+      <label><input type="checkbox" id="rpCoop" checked> 시수 차이 원인 (공동교육과정·온라인학교)</label>
+      <label><input type="checkbox" id="rpTr" checked> 전입생 검증</label>
+    </fieldset>
+    <label class="inline"><input type="checkbox" id="rpMask"> 학생 이름 가리기 (예: 김*균)</label>
+    <div class="rp-msg" id="rpMsg" role="status"></div>
+    <div class="rp-actions">
+      <button type="button" class="btn" id="rpCancel">닫기</button>
+      <button type="button" class="btn" id="rpHtml">HTML로 저장</button>
+      <button type="button" class="btn primary" id="rpPdf">PDF로 저장</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+/* 이수 검사 핵심 로직: 브라우저와 Node 양쪽에서 사용 */
+(function (root) {
+  const norm = s => String(s == null ? "" : s).replace(/\s+/g, "").replace(/Ⅰ/g, "I").replace(/Ⅱ/g, "II")
+    .replace(/[·∙ㆍ]/g, "").toLowerCase();
+  const semKey = (g, s) => `${g}-${s}`;
+  const SEM_ORDER = ["1-1", "1-2", "2-1", "2-2", "3-1", "3-2"];
+
+  /* ---------- 1. 나이스 '교과학습발달상황' 시트 파싱 ---------- */
+  function parseRecordSheet(rows, fileName) {
+    const out = { fileName, grade: null, cls: null, date: null, schoolYear: null, students: [], recordedSems: [], warnings: [] };
+    for (let i = 0; i < Math.min(rows.length, 6); i++) {
+      for (const c of rows[i] || []) {
+        if (c == null) continue;
+        const s = String(c);
+        const m = s.match(/(\d)\s*학년\s*(\d+)\s*반/);
+        if (m && out.grade == null) { out.grade = +m[1]; out.cls = +m[2]; }
+        const d = s.match(/(20\d{2})\.\s*(\d{1,2})\.\s*(\d{1,2})/);
+        if (d && !out.date) { out.date = `${d[1]}-${d[2].padStart(2, "0")}-${d[3].padStart(2, "0")}`; out.schoolYear = +d[2] >= 3 ? +d[1] : +d[1] - 1; }
+      }
+    }
+    let section = "main", col = null, cur = null, curG = null, curS = null;
+    const byKey = new Map();
+    const recorded = new Set();
+    for (const r of rows) {
+      if (!r) continue;
+      const a = r[0] == null ? "" : String(r[0]).trim();
+      if (a.startsWith("<") && a.includes("체육")) { section = "pe"; continue; }
+      if (a.startsWith("<") && a.includes("교양")) { section = "lib"; continue; }
+      if (norm(a) === "번호") {
+        col = {};
+        r.forEach((h, i) => { const k = norm(h); if (k && col[k] == null) col[k] = i; });
+        continue;
+      }
+      if (!col || a === "이수학점 합계" || a.includes("조회된 데이터")) continue;
+      const subj = r[col["과목"]];
+      if (subj == null || String(subj).trim() === "") continue;
+      const no = r[col["번호"]], name = r[col["성명"]];
+      if (no != null && name != null && String(name).trim() !== "") {
+        const key = `${+no}|${String(name).trim()}`;
+        if (!byKey.has(key)) {
+          const st = { no: +no, name: String(name).trim(), grade: out.grade, cls: out.cls, file: fileName, entries: [] };
+          byKey.set(key, st); out.students.push(st);
+        }
+        cur = byKey.get(key);
+      }
+      if (!cur) continue;
+      if (r[col["학년"]] != null && r[col["학년"]] !== "") curG = +r[col["학년"]];
+      if (r[col["학기"]] != null && r[col["학기"]] !== "") curS = +r[col["학기"]];
+      const achIdx = col["성취도"] != null ? col["성취도"] : col["이수여부"];
+      const e = {
+        sem: semKey(curG, curS), area: r[col["교과"]] == null ? "" : String(r[col["교과"]]).trim(),
+        name: String(subj).trim(), credit: +r[col["학점"]] || 0,
+        ach: achIdx != null && r[achIdx] != null ? String(r[achIdx]).trim() : "",
+        note: col["비고"] != null && r[col["비고"]] != null ? String(r[col["비고"]]).trim() : "", section
+      };
+      cur.entries.push(e);
+      if (section === "main") recorded.add(e.sem);
+    }
+    out.recordedSems = SEM_ORDER.filter(s => recorded.has(s));
+    if (out.grade == null) out.warnings.push("파일 위쪽에서 'O학년 O반'을 찾지 못했어요.");
+    if (!out.students.length) out.warnings.push("학생 성적 행을 찾지 못했어요. 나이스 '교과학습발달상황' 엑셀이 맞는지 확인해 주세요.");
+    return out;
+  }
+
+  /* ---------- 2. 검사 범위 ---------- */
+  function policyRange(grade) {
+    if (grade === 1) return ["1-1", "1-2"];
+    const sems = [];
+    for (let g = 1; g < grade; g++) sems.push(`${g}-1`, `${g}-2`);
+    sems.push(`${grade}-1`);
+    return sems;
+  }
+
+  /* ---------- 3. 배당표 도우미 ---------- */
+  function planIndex(plan) {
+    const byNorm = new Map(plan.courses.map(c => [norm(c.n), c]));
+    const pairs = [], seen = new Set();
+    plan.courses.filter(c => c.k === "fixed" && c.alt.length).forEach(a => {
+      if (seen.has(a.n)) return;
+      const b = plan.courses.find(o => o !== a && o.k === "fixed" && o.alt.length && o.a === a.a &&
+        o.s.join() === a.alt.join() && o.alt.join() === a.s.join());
+      if (!b) return;
+      seen.add(a.n); seen.add(b.n);
+      pairs.push({ a, b, sems: [...a.s, ...a.alt].sort() });
+    });
+    return { byNorm, pairs, pairOf: n => pairs.find(p => p.a.n === n || p.b.n === n) };
+  }
+
+  const isFail = e => /^(I|F|미이수|미도달)$/i.test(e.ach) || /미이수/.test(e.note);
+  const SUB_NOTE = /공동교육|온라인|타기관|위탁|학교\s*밖/;
+
+  /* ---------- 4. 학생 1명 검사 ---------- */
+  function checkStudent(st, plan, range) {
+    const R = new Set(range);
+    const idx = planIndex(plan);
+    const issues = [];
+    const push = (sev, code, sem, text, extra = {}) => issues.push({ sev, code, sem, text, ...extra });
+    const inR = st.entries.filter(e => R.has(e.sem));
+    const transfer = st.entries.some(e => /전입/.test(e.note));
+    // 이수 과목 매핑
+    const taken = new Map(); // planName -> [entries]
+    const unknown = [];
+    inR.forEach(e => {
+      const c = idx.byNorm.get(norm(e.name));
+      if (c) { if (!taken.has(c.n)) taken.set(c.n, []); taken.get(c.n).push(e); }
+      else unknown.push(e);
+    });
+    const okTaken = n => (taken.get(n) || []).filter(e => !isFail(e));
+    const failTaken = n => (taken.get(n) || []).filter(isFail);
+    const used = new Set();
+
+    // (1) 학교지정 고정 과목
+    plan.courses.forEach(c => {
+      if (c.k !== "fixed" || c.alt.length) return;
+      c.s.filter(s => R.has(s)).forEach(s => {
+        const ok = okTaken(c.n);
+        if (ok.length) {
+          if (!ok.some(e => e.sem === s)) push("w", "sem-diff:" + c.n, s, `${c.n}: 배당표는 ${s}, 실제 ${ok.map(e => e.sem).join(",")} 이수`);
+        } else if (failTaken(c.n).length) {
+          push("e", "fail:" + c.n, s, `${c.n} (${c.cr}학점) 미이수 처리(성취도 ${failTaken(c.n)[0].ach || "I"})`, { need: { label: c.n, areas: [c.a], cr: c.cr } });
+        } else push("e", "miss:" + c.n, s, `${c.n} (${c.a}, ${c.cr}학점) 이수 기록 없음`, { need: { label: c.n, areas: [c.a], cr: c.cr } });
+      });
+    });
+
+    // (2) 교차 이수 쌍
+    idx.pairs.forEach(p => {
+      const sems = p.sems.filter(s => R.has(s));
+      if (!sems.length) return;
+      const hasA = okTaken(p.a.n).length > 0, hasB = okTaken(p.b.n).length > 0;
+      const label = `${p.a.n}/${p.b.n}`;
+      if (sems.length === 2) {
+        if (!hasA) push("e", "miss:" + p.a.n, sems.join("~"), `${p.a.n} (${p.a.a}, ${p.a.cr}학점) 이수 기록 없음`, { need: { label: p.a.n, areas: [p.a.a], cr: p.a.cr } });
+        if (!hasB) push("e", "miss:" + p.b.n, sems.join("~"), `${p.b.n} (${p.b.a}, ${p.b.cr}학점) 이수 기록 없음`, { need: { label: p.b.n, areas: [p.b.a], cr: p.b.cr } });
+      } else if (!hasA && !hasB) {
+        push("e", "miss:" + label, sems[0], `${label} 중 이수 기록 없음 (${p.a.a}, ${p.a.cr}학점)`, { need: { label, areas: [p.a.a], cr: p.a.cr } });
+      }
+    });
+
+    // (3) 학년선택군 (택N)
+    plan.groups.filter(g => R.has(g.sem)).forEach(g => {
+      const cs = plan.courses.filter(c => c.g === g.id);
+      const got = cs.filter(c => okTaken(c.n).length);
+      let n = got.length;
+      const per = cs[0].cr;
+      const lang = cs.every(c => /외국어|한문/.test(c.a));
+      const label = g.pick === 1 ? `택1 (${cs.map(c => c.n).join("/")})` : `${g.sem} 학년선택 택${g.pick}`;
+      if (n < g.pick) {
+        const subs = unknown.filter(e => !used.has(e) && e.sem === g.sem && !isFail(e) &&
+          (lang ? /외국어|한문/.test(e.area) : !/외국어|한문/.test(e.area) || !plan.groups.some(x => x.sem === g.sem && x.pick === 1)));
+        const take = subs.slice(0, g.pick - n);
+        take.forEach(e => used.add(e));
+        if (take.length) push("w", "sub:" + g.id, g.sem, `${label}: 배당표 외 과목으로 채움 → ${take.map(e => e.name + (e.note ? `(${e.note})` : "")).join(", ")} · 인정 여부 확인`);
+        n += take.length;
+      }
+      if (n < g.pick) push("e", "grp:" + g.id, g.sem, `${label}: ${n}과목 이수 · ${g.pick - n}과목(${(g.pick - n) * per}학점) 부족`, { need: { label, areas: [...new Set(cs.map(c => c.a))], cr: (g.pick - n) * per } });
+      if (got.length > g.pick) push("w", "over:" + g.id, g.sem, `${label}: ${got.length}과목 이수 (배당표보다 ${got.length - g.pick}과목 많음)`);
+    });
+
+    // (4) 국·수·영 선택과목 상한
+    const kme = inR.filter(e => +e.sem[0] >= 2 && /^(국어|수학|영어)$/.test(e.area) && !isFail(e)).filter(e => {
+      const c = idx.byNorm.get(norm(e.name)); return !c || c.k === "elective";
+    });
+    const kmeCr = kme.reduce((a, e) => a + e.credit, 0);
+    if (kmeCr > 15 || kme.length > 5) push("e", "kme", "2·3학년", `국어·수학·영어 선택과목 ${kmeCr}학점(${kme.length}과목) · 최대 15학점(5과목) 초과`);
+
+    // (5) 배당표와 학점이 다른 과목 (전입 등)
+    const diffCr = [];
+    taken.forEach((es, n) => { const c = plan.courses.find(x => x.n === n); es.forEach(e => { if (e.credit && e.credit !== c.cr) diffCr.push(`${e.name} ${e.credit}학점(배당 ${c.cr})`); }); });
+    if (diffCr.length) push("i", "crdiff", "", `배당표와 학점이 다른 과목: ${diffCr.join(", ")}`);
+    const likelyTransfer = transfer || diffCr.length >= 2;
+
+    // (6) 배당표 외 과목 (정보)
+    unknown.filter(e => !used.has(e)).forEach(e => push("i", "extra:" + e.name, e.sem, `배당표 외 과목: ${e.name} ${e.credit}학점${e.note ? ` (${e.note})` : ""}`));
+
+    // (7) 교과별 필수 이수 학점
+    const req = plan.req.map(r => {
+      let planCr = 0, earned = 0; const counted = new Set();
+      r.c.forEach(n => {
+        const c = plan.courses.find(x => x.n === n);
+        if (c.k === "fixed" && !c.alt.length) planCr += c.s.filter(s => R.has(s)).length * c.cr;
+        const p = idx.pairOf(n);
+        if (p && !counted.has(p.a.n)) { planCr += p.sems.filter(s => R.has(s)).length * p.a.cr; counted.add(p.a.n); }
+        if (c.k === "elective") { const g = plan.groups.find(x => x.id === c.g); if (R.has(g.sem) && !counted.has(g.id)) { planCr += g.cr; counted.add(g.id); } }
+        okTaken(n).forEach(e => earned += e.credit);
+      });
+      return { label: r.label, plan: planCr, earned, total: r.cr };
+    }).filter(r => r.plan > 0);
+
+    const credits = inR.filter(e => !isFail(e)).reduce((a, e) => a + e.credit, 0);
+    return { issues, req, credits, transfer, likelyTransfer, range };
+  }
+
+  function planSemCredits(plan, sem) {
+    const idx = planIndex(plan);
+    let cr = 0;
+    plan.courses.forEach(c => { if (c.k === "fixed" && !c.alt.length && c.s.includes(sem)) cr += c.cr; });
+    idx.pairs.forEach(p => { if (p.sems.includes(sem)) cr += p.a.cr; });
+    plan.groups.forEach(g => { if (g.sem === sem) cr += g.cr; });
+    return cr;
+  }
+  const mode = arr => {
+    const m = new Map(); arr.forEach(v => m.set(v, (m.get(v) || 0) + 1));
+    let best = null, bn = -1; m.forEach((n, v) => { if (n > bn || (n === bn && v > best)) { best = v; bn = n; } });
+    return best;
+  };
+  const semCredits = (st, sem) => st.entries.filter(e => e.sem === sem && !isFail(e)).reduce((a, e) => a + e.credit, 0);
+
+  /* ---------- 5. 여러 파일 일괄 검사 ---------- */
+  function runBatch(parsedFiles, DATA) {
+    const students = [];
+    parsedFiles.forEach(f => {
+      if (f.grade == null) return;
+      const year = f.schoolYear != null ? f.schoolYear - f.grade + 1 : null;
+      const plan = DATA[String(year)];
+      const pol = policyRange(f.grade);
+      const range = pol.filter(s => f.recordedSems.includes(s));
+      f.year = year; f.range = range; f.policy = pol; f.hasPlan = !!plan;
+      f.students.forEach(st => {
+        st.year = year;
+        if (!plan) { students.push({ ...st, result: { issues: [{ sev: "e", code: "noplan", sem: "", text: `${year}학년도 입학생 배당표가 없어 검사하지 못했어요.` }], req: [], credits: 0, range } }); return; }
+        students.push({ ...st, result: checkStudent(st, plan, range) });
+      });
+    });
+    // 반 전체 공통 누락 탐지: 같은 반 80% 이상이 같은 오류
+    const classMap = new Map();
+    students.forEach(s => { const k = `${s.grade}-${s.cls}`; if (!classMap.has(k)) classMap.set(k, []); classMap.get(k).push(s); });
+    const classwide = [];
+    classMap.forEach((list, k) => {
+      if (list.length < 5) return;
+      const cnt = new Map();
+      list.forEach(s => new Set(s.result.issues.filter(i => i.sev === "e").map(i => i.code)).forEach(c => cnt.set(c, (cnt.get(c) || 0) + 1)));
+      cnt.forEach((n, code) => {
+        if (n / list.length >= 0.8 && code !== "noplan") {
+          const sample = list.find(s => s.result.issues.some(i => i.code === code)).result.issues.find(i => i.code === code);
+          classwide.push({ grade: list[0].grade, cls: list[0].cls, code, n, size: list.length, text: sample.text, sem: sample.sem });
+          list.forEach(s => s.result.issues.forEach(i => { if (i.code === code) i.classwide = true; }));
+        }
+      });
+    });
+    // 학점 기준: 같은 학년·같은 검사 범위 학생들의 최빈 학점 (학기별·합계), 배당표 학점도 함께
+    const groups = new Map();
+    students.forEach(s => { const k = `${s.grade}|${s.result.range.join(",")}|${s.year}`; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(s); });
+    const baselines = [];
+    groups.forEach(list => {
+      const range = list[0].result.range, plan = DATA[String(list[0].year)];
+      const bySem = range.map(sem => ({ sem, peer: mode(list.map(s => semCredits(s, sem))), plan: plan ? planSemCredits(plan, sem) : null }));
+      const peerTotal = mode(list.map(s => s.result.credits));
+      const planTotal = plan ? bySem.reduce((a, x) => a + x.plan, 0) : null;
+      baselines.push({ grade: list[0].grade, year: list[0].year, range, bySem, peerTotal, planTotal, n: list.length });
+      list.forEach(s => {
+        s.credit = {
+          earned: s.result.credits, peerTotal, planTotal,
+          bySem: bySem.map(x => ({ sem: x.sem, earned: semCredits(s, x.sem), peer: x.peer, plan: x.plan }))
+        };
+      });
+    });
+    // 반 전체가 학점 부족인 경우
+    classMap.forEach(list => {
+      if (list.length < 5 || !list[0].credit) return;
+      ["peer", "plan"].forEach(basis => {
+        const short = list.filter(s => s.credit.earned < (basis === "peer" ? s.credit.peerTotal : s.credit.planTotal));
+        if (short.length / list.length >= 0.8) list.forEach(s => { s.credit["cw_" + basis] = true; });
+      });
+    });
+    return { students, classwide, baselines, files: parsedFiles };
+  }
+
+  /* 상태: 학점이 기준보다 적으면 미충족, 학점은 채웠지만 과목에 문제가 있으면 확인 필요 */
+  function baseOf(s, basis) { return s.credit ? (basis === "plan" ? s.credit.planTotal : s.credit.peerTotal) : null; }
+  function shortOf(s, basis) { const b = baseOf(s, basis); return b == null ? 0 : Math.max(0, b - s.credit.earned); }
+  function statusOf(s, basis) {
+    if (s.result.issues.some(i => i.code === "noplan")) return "fail";
+    if (shortOf(s, basis || "peer") > 0) return "fail";
+    if (s.result.issues.some(i => i.sev === "e" || i.sev === "w")) return "warn";
+    return "ok";
+  }
+
+  /* ---------- 시수 차이 원인 (공동교육과정·온라인학교 등) ---------- */
+  const COOP_RE = /공동교육|온라인|타기관|위탁|학교\s*밖/;
+  function coopKind(note) {
+    if (/온라인/.test(note)) return "온라인학교";
+    if (/공동교육/.test(note)) return "공동교육과정";
+    if (/위탁/.test(note)) return "위탁교육";
+    if (/타기관/.test(note)) return "타기관";
+    return "학교 밖 교육";
+  }
+  function creditDiff(s, basis) {
+    const base = baseOf(s, basis);
+    if (base == null) return null;
+    const diff = s.credit.earned - base;
+    const coop = s.entries.filter(e => s.result.range.includes(e.sem) && COOP_RE.test(e.note) && !isFail(e))
+      .map(e => ({ sem: e.sem, name: e.name, credit: e.credit, kind: coopKind(e.note) }));
+    const coopCr = coop.reduce((a, e) => a + e.credit, 0);
+    let cause = "none";
+    if (diff !== 0) cause = !coopCr ? "other" : diff === coopCr ? "coop" : "mixed";
+    else if (coopCr) cause = "coop-in";   // 시수는 같지만 공동교육과정 과목이 들어 있음 (다른 과목 대신)
+    return { diff, base, coop, coopCr, rest: diff - coopCr, cause };
+  }
+
+  /* ---------- 전입생 탐지·검증 ---------- */
+  const COOP = /공동교육|온라인|타기관|위탁|학교\s*밖/;
+  const areaKey = a => norm(String(a || "").replace(/\(.*?\)/g, ""));
+  const areaName = a => String(a || "").replace(/\(.*?\)/g, "").replace(/∙/g, "·").trim();
+  function analyzeTransfers(R, DATA, opts = {}) {
+    const rareRate = opts.rareRate ?? 0.03;
+    const out = [];
+    const groups = new Map();
+    R.students.forEach(s => { const k = `${s.grade}|${s.result.range.join(",")}`; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(s); });
+    groups.forEach(list => {
+      const n = list.length;
+      const cnt = new Map(), crs = new Map(), areaCr = new Map();
+      const inR = s => s.entries.filter(e => s.result.range.includes(e.sem));
+      list.forEach(s => {
+        const seen = new Set(), ac = new Map();
+        inR(s).forEach(e => {
+          const k = norm(e.name);
+          if (!seen.has(k)) { seen.add(k); cnt.set(k, (cnt.get(k) || 0) + 1); }
+          if (!crs.has(k)) crs.set(k, []); crs.get(k).push(e.credit);
+          if (!isFail(e)) ac.set(areaKey(e.area), (ac.get(areaKey(e.area)) || 0) + e.credit);
+        });
+        s._ac = ac;
+        ac.forEach((v, a) => { if (!areaCr.has(a)) areaCr.set(a, []); });
+      });
+      const allAreas = [...areaCr.keys()];
+      list.forEach(s => allAreas.forEach(a => areaCr.get(a).push(s._ac.get(a) || 0)));
+      const crMode = new Map([...crs].map(([k, v]) => [k, mode(v)]));
+      const areaMode = new Map([...areaCr].map(([k, v]) => [k, mode(v)]));
+      const areaLabel = new Map();
+      list.forEach(s => s.entries.forEach(e => { const k = areaKey(e.area); if (!areaLabel.has(k)) areaLabel.set(k, areaName(e.area)); }));
+
+      list.forEach(s => {
+        const es = inR(s);
+        const noted = es.filter(e => /전입/.test(e.note));
+        const rare = es.filter(e => !COOP.test(e.note) && cnt.get(norm(e.name)) / n < rareRate)
+          .map(e => ({ e, count: cnt.get(norm(e.name)) }));
+        const crDiff = es.filter(e => cnt.get(norm(e.name)) >= 5 && e.credit !== crMode.get(norm(e.name)))
+          .map(e => ({ e, usual: crMode.get(norm(e.name)) }));
+        const isCand = noted.length > 0 || rare.length > 0 || crDiff.length >= 2;
+        if (!isCand) return;
+        const plan = DATA[String(s.year)];
+        const byNorm = plan ? new Map(plan.courses.map(c => [norm(c.n), c])) : new Map();
+        // 빠진 과목 → 같은 교과 대체 후보
+        const needs = s.result.issues.filter(i => i.sev === "e" && i.need).map(i => ({ ...i.need, sem: i.sem, classwide: !!i.classwide }));
+        // 대체 후보: 배당표에 없는 과목 + 배당표 과목이지만 검사 범위 밖 학기에 편성된 과목(예: 3학년 과목을 1학년에 이수)
+        const R = new Set(s.result.range);
+        const planned = c => c && [...(c.s || []), ...(c.alt || [])].some(x => R.has(x));
+        const pool = es.filter(e => !isFail(e) && !planned(byNorm.get(norm(e.name))));
+        const used = new Set();
+        needs.forEach(nd => {
+          const keys = nd.areas.map(areaKey);
+          const cands = pool.filter(e => !used.has(e) && keys.includes(areaKey(e.area)))
+            .sort((a, b) => (a.sem === nd.sem ? 0 : 1) - (b.sem === nd.sem ? 0 : 1) || b.credit - a.credit);
+          const pick = []; let cr = 0;
+          for (const e of cands) { if (cr >= nd.cr) break; pick.push(e); used.add(e); cr += e.credit; }
+          nd.subs = pick; nd.subCr = cr; nd.covered = cr >= nd.cr; nd.partial = cr > 0 && cr < nd.cr;
+        });
+        // 교과군별 학점
+        const areas = allAreas.map(a => ({ key: a, label: areaLabel.get(a) || a, earned: s._ac.get(a) || 0, usual: areaMode.get(a) || 0 }))
+          .filter(x => x.earned || x.usual).map(x => ({ ...x, diff: x.earned - x.usual }));
+        const extra = pool.filter(e => !used.has(e));
+        const short = s.credit ? Math.max(0, s.credit.peerTotal - s.credit.earned) : 0;
+        const realNeeds = needs.filter(x => !x.classwide);
+        let verdict;
+        if (short > 0) verdict = "credit";
+        else if (realNeeds.some(x => !x.covered)) verdict = "makeup";
+        else if (realNeeds.length) verdict = "substitute";
+        else if ((s.result.req || []).some(r => r.earned < r.plan)) verdict = "area";
+        else verdict = "ok";
+        const sems = [...new Set(noted.map(e => e.sem))].sort();
+        out.push({
+          s, kind: noted.length ? "confirmed" : "suspected", noted, rare, crDiff, needs, areas, extra, short, verdict,
+          reqShort: (s.result.req || []).filter(r => r.earned < r.plan),
+          before: sems, after: s.result.range.filter(x => !sems.includes(x) && sems.length && x > sems[sems.length - 1])
+        });
+      });
+      list.forEach(s => delete s._ac);
+    });
+    const order = { credit: 0, makeup: 1, substitute: 2, area: 3, ok: 4 };
+    out.sort((a, b) => order[a.verdict] - order[b.verdict] || a.s.grade - b.s.grade || a.s.cls - b.s.cls || a.s.no - b.s.no);
+    return out;
+  }
+
+  /* ---------- 6. 학점 배당표 엑셀 파싱 ---------- */
+  function isPlanWorkbook(wb) {
+    if (wb.SheetNames.some(n => /입학/.test(n))) return true;
+    return wb.SheetNames.some(n => {
+      const ws = wb.Sheets[n]; const a1 = ws && ws.A1 && String(ws.A1.v || "");
+      return /배당표/.test(a1);
+    });
+  }
+  function parsePlanWorkbook(wb, XLSX) {
+    const clean = s => s == null ? null : String(s).replace(/\s+/g, " ").trim();
+    let name = wb.SheetNames.find(n => /입학/.test(n));
+    const findHeader = rows => rows.findIndex(r => r && r.some(c => norm(c) === "과목") && r.some(c => norm(c) === "운영학점"));
+    let ws, rows, h;
+    const candidates = name ? [name, ...wb.SheetNames.filter(n => n !== name)] : wb.SheetNames;
+    for (const n of candidates) {
+      const w = wb.Sheets[n]; if (!w || !w["!ref"]) continue;
+      const rs = XLSX.utils.sheet_to_json(w, { header: 1, raw: true, defval: null });
+      const hi = findHeader(rs);
+      if (hi >= 0) { ws = w; rows = rs; h = hi; name = n; break; }
+    }
+    if (!ws) throw new Error("'과목'과 '운영 학점' 머리글이 있는 시트를 찾지 못했어요.");
+    // 병합 셀
+    const mtop = new Map();
+    (ws["!merges"] || []).forEach(m => { for (let r = m.s.r; r <= m.e.r; r++) for (let c = m.s.c; c <= m.e.c; c++) mtop.set(r + "," + c, [m.s.r, m.s.c, m.e.r]); });
+    const raw = (r, c) => rows[r] ? rows[r][c] : null;
+    const val = (r, c) => { const m = mtop.get(r + "," + c); return m ? raw(m[0], m[1]) : raw(r, c); };
+    const span = (r, c) => { const m = mtop.get(r + "," + c); return m ? [m[0], m[2]] : [r, r]; };
+    // 열 찾기
+    const hdr = rows[h].map(norm);
+    const colOf = (...keys) => { for (const k of keys) { const i = hdr.findIndex(x => x === k); if (i >= 0) return i; } for (const k of keys) { const i = hdr.findIndex(x => x && x.includes(k)); if (i >= 0) return i; } return -1; };
+    const C = { sec: colOf("구분"), area: colOf("교과(군)", "교과"), type: colOf("과목유형"), name: colOf("과목"), cr: colOf("운영학점"), note: colOf("비고"), req: colOf("필수이수학점") };
+    const semCols = {};
+    hdr.forEach((x, i) => { const m = x && x.match(/^(\d)학년$/); if (m) { semCols[i] = `${m[1]}-1`; semCols[i + 1] = `${m[1]}-2`; } });
+    if (C.name < 0 || C.cr < 0 || !Object.keys(semCols).length) throw new Error("과목·운영 학점·학년 열을 찾지 못했어요.");
+    // 입학년도
+    let year = null;
+    const ym = name.match(/(20\d{2})/); if (ym) year = +ym[1];
+    if (!year) for (let r = 0; r < h; r++) for (const c of rows[r] || []) { const m = String(c ?? "").match(/(20\d{2})\s*학년도\s*입학/); if (m && !year) year = +m[1]; }
+    if (!year) throw new Error("입학년도를 찾지 못했어요. 시트 이름이나 위쪽에 '2026학년도 입학'처럼 적혀 있어야 해요.");
+    // 본문
+    let end = rows.length;
+    for (let r = h + 1; r < rows.length; r++) { const a = String(raw(r, 0) ?? ""); if (/소계|창의적/.test(a)) { end = r; break; } }
+    const courses = [], groups = new Map(), reqMap = new Map(), warnings = [];
+    for (let r = h + 1; r < end; r++) {
+      const nm = clean(raw(r, C.name));
+      if (!nm || /^\d학기$/.test(nm) || nm === "과목") continue;
+      const section = clean(val(r, C.sec)) || "";
+      let area = (clean(val(r, C.area)) || "").replace(/\s+/g, "");
+      if (area.startsWith("사회")) area = "사회";
+      const crRaw = raw(r, C.cr); const cr = +crRaw;
+      if (!cr) { warnings.push(`${nm}: 운영 학점이 비어 있어 뺐어요.`); continue; }
+      const c = { row: r, n: nm, a: area, t: clean(raw(r, C.type)) || "", cr };
+      const note = C.note >= 0 ? clean(raw(r, C.note)) : null; if (note) c.note = note;
+      let grp = null;
+      for (const [ci, sem] of Object.entries(semCols)) {
+        const v = val(r, +ci); if (v == null) continue;
+        const m = String(v).match(/(\d+)\s*\(\s*택\s*(\d+)\s*\)/);
+        if (m) { const top = span(r, +ci)[0]; grp = { id: `${sem}@${top + 1}`, sem, cr: +m[1], pick: +m[2] }; break; }
+      }
+      if (grp && !/학교지정/.test(section)) {
+        if (!groups.has(grp.id)) groups.set(grp.id, grp);
+        Object.assign(c, { k: "elective", g: grp.id, s: [grp.sem] });
+      } else {
+        const fixed = [], alt = [];
+        for (const [ci, sem] of Object.entries(semCols)) {
+          const v = raw(r, +ci); if (v == null || String(v).trim() === "") continue;
+          if (/^\s*\[/.test(String(v))) alt.push(sem); else fixed.push(sem);
+        }
+        if (!fixed.length && !alt.length) { warnings.push(`${nm}: 편성 학기가 없어 뺐어요.`); continue; }
+        Object.assign(c, { k: "fixed", s: fixed, alt });
+      }
+      if (C.req >= 0) {
+        const pv = raw(r, C.req);
+        if (pv != null && pv !== "" && !isNaN(+pv)) { const [lo, hi] = span(r, C.req); reqMap.set(lo + "-" + hi, { lo, hi, cr: +pv }); }
+      }
+      courses.push(c);
+    }
+    // 필수 이수 학점 묶음
+    const req = [];
+    reqMap.forEach(v => {
+      const cs = courses.filter(c => c.row >= v.lo && c.row <= v.hi);
+      if (!cs.length) return;
+      const areas = [...new Set(cs.map(c => c.a))].sort();
+      const n0 = cs[0].n; let label;
+      if (areas.length === 1 && areas[0] === "사회") label = n0.replace(/\d/g, "");
+      else if (areas.length === 1 && areas[0] === "과학") label = "과학 (통합과학·과학탐구실험)";
+      else if (areas.includes("교양")) label = areas.filter(a => a !== "교양").map(a => a.replace("∙", "·")).join("·") + " · 교양";
+      else if (areas.length === 1 && /외국어|한문/.test(areas[0])) label = `제2외국어 (${cs[0].s[0]})`;
+      else label = areas.join("·");
+      req.push({ label, cr: v.cr, c: cs.map(c => c.n) });
+    });
+    // 학기당 이수 과목 수
+    const counts = {};
+    const cr = rows.findIndex(r => r && /학기당\s*이수\s*과목/.test(String(r[0] ?? "")));
+    Object.entries(semCols).forEach(([ci, sem]) => { counts[sem] = cr >= 0 ? (+raw(cr, +ci) || null) : null; });
+    courses.forEach(c => delete c.row);
+    if (!courses.length) throw new Error("과목 행을 하나도 읽지 못했어요.");
+    return { year, sheet: name, plan: { courses, groups: [...groups.values()], req, counts }, warnings };
+  }
+
+  const api = { norm, parseRecordSheet, policyRange, checkStudent, runBatch, statusOf, baseOf, shortOf, planSemCredits, isPlanWorkbook, parsePlanWorkbook, analyzeTransfers, creditDiff, coopKind, SEM_ORDER };
+  if (typeof module !== "undefined" && module.exports) module.exports = api; else root.Core = api;
+})(typeof window !== "undefined" ? window : globalThis);
+
+</script>
+<script>
+const BUILTIN = {"2025":{"courses":[{"n":"공통국어1","a":"국어","t":"공통","cr":3,"k":"fixed","s":["1-1"],"alt":[]},{"n":"공통국어2","a":"국어","t":"공통","cr":3,"k":"fixed","s":["1-2"],"alt":[]},{"n":"문학","a":"국어","t":"일반","cr":4,"k":"fixed","s":["2-1"],"alt":[]},{"n":"독서와 작문","a":"국어","t":"일반","cr":4,"k":"fixed","s":["2-2"],"alt":[]},{"n":"화법과 언어","a":"국어","t":"일반","cr":4,"k":"fixed","s":["3-1"],"alt":[]},{"n":"독서 토론과 글쓰기","a":"국어","t":"융합","cr":4,"k":"fixed","s":["3-2"],"alt":[]},{"n":"공통수학1","a":"수학","t":"공통","cr":3,"k":"fixed","s":["1-1"],"alt":[]},{"n":"공통수학2","a":"수학","t":"공통","cr":3,"k":"fixed","s":["1-2"],"alt":[]},{"n":"대수","a":"수학","t":"일반","cr":4,"k":"fixed","s":["2-1"],"alt":[]},{"n":"미적분Ⅰ","a":"수학","t":"일반","cr":4,"k":"fixed","s":["2-2"],"alt":[]},{"n":"확률과 통계","a":"수학","t":"일반","cr":4,"k":"fixed","s":["3-1"],"alt":[]},{"n":"실용 통계","a":"수학","t":"융합","cr":4,"k":"fixed","s":["3-2"],"alt":[]},{"n":"공통영어1","a":"영어","t":"공통","cr":3,"k":"fixed","s":["1-1"],"alt":[]},{"n":"공통영어2","a":"영어","t":"공통","cr":3,"k":"fixed","s":["1-2"],"alt":[]},{"n":"영어Ⅰ","a":"영어","t":"일반","cr":4,"k":"fixed","s":["2-1"],"alt":[]},{"n":"영어Ⅱ","a":"영어","t":"일반","cr":4,"k":"fixed","s":["2-2"],"alt":[]},{"n":"영어 독해와 작문","a":"영어","t":"일반","cr":4,"k":"fixed","s":["3-1"],"alt":[]},{"n":"미디어 영어","a":"영어","t":"융합","cr":4,"k":"fixed","s":["3-2"],"alt":[]},{"n":"한국사1","a":"사회","t":"공통","cr":3,"k":"fixed","s":["1-1"],"alt":[]},{"n":"한국사2","a":"사회","t":"공통","cr":3,"k":"fixed","s":["1-2"],"alt":[]},{"n":"통합사회1","a":"사회","t":"공통","cr":4,"k":"fixed","s":["1-1"],"alt":[]},{"n":"통합사회2","a":"사회","t":"공통","cr":4,"k":"fixed","s":["1-2"],"alt":[]},{"n":"통합과학1","a":"과학","t":"공통","cr":4,"k":"fixed","s":["1-1"],"alt":[]},{"n":"통합과학2","a":"과학","t":"공통","cr":4,"k":"fixed","s":["1-2"],"alt":[]},{"n":"과학탐구실험1","a":"과학","t":"공통","cr":1,"k":"fixed","s":["1-1"],"alt":[]},{"n":"과학탐구실험2","a":"과학","t":"공통","cr":1,"k":"fixed","s":["1-2"],"alt":[]},{"n":"체육1","a":"체육","t":"일반","cr":2,"k":"fixed","s":["1-1"],"alt":[]},{"n":"체육2","a":"체육","t":"일반","cr":2,"k":"fixed","s":["1-2"],"alt":[]},{"n":"스포츠 생활1","a":"체육","t":"융합","cr":2,"k":"fixed","s":["2-1"],"alt":[]},{"n":"스포츠 생활2","a":"체육","t":"융합","cr":2,"k":"fixed","s":["2-2"],"alt":[]},{"n":"스포츠 문화","a":"체육","t":"진로","cr":1,"k":"fixed","s":["3-1"],"alt":[]},{"n":"스포츠 과학","a":"체육","t":"진로","cr":1,"k":"fixed","s":["3-2"],"alt":[]},{"n":"음악","a":"예술","t":"일반","cr":3,"k":"fixed","s":["1-1"],"alt":["1-2"]},{"n":"미술","a":"예술","t":"일반","cr":3,"k":"fixed","s":["1-2"],"alt":["1-1"]},{"n":"음악 감상과 비평","a":"예술","t":"진로","cr":2,"k":"fixed","s":["3-1"],"alt":["3-2"]},{"n":"미술 감상과 비평","a":"예술","t":"진로","cr":2,"k":"fixed","s":["3-2"],"alt":["3-1"]},{"n":"정보","a":"기술∙가정/정보","t":"일반","cr":3,"k":"fixed","s":["1-1"],"alt":["1-2"]},{"n":"로봇과 공학세계","a":"기술∙가정/정보","t":"진로","cr":3,"k":"fixed","s":["1-2"],"alt":["1-1"]},{"n":"진로와 직업","a":"교양","t":"일반","cr":2,"k":"fixed","s":["3-1"],"alt":[]},{"n":"생태와 환경","a":"교양","t":"일반","cr":2,"k":"fixed","s":["3-2"],"alt":[]},{"n":"문학과 영상","a":"국어","t":"진로","cr":3,"k":"elective","g":"2-1@47","s":["2-1"]},{"n":"기하","a":"수학","t":"진로","cr":3,"k":"elective","g":"2-1@47","s":["2-1"]},{"n":"영어 발표와 토론","a":"영어","t":"진로","cr":3,"k":"elective","g":"2-1@47","s":["2-1"]},{"n":"세계사","a":"사회","t":"일반","cr":3,"k":"elective","g":"2-1@47","s":["2-1"]},{"n":"사회와 문화","a":"사회","t":"일반","cr":3,"k":"elective","g":"2-1@47","s":["2-1"]},{"n":"현대사회와 윤리","a":"사회","t":"일반","cr":3,"k":"elective","g":"2-1@47","s":["2-1"]},{"n":"도시의 미래 탐구","a":"사회","t":"진로","cr":3,"k":"elective","g":"2-1@47","s":["2-1"]},{"n":"물리학","a":"과학","t":"일반","cr":3,"k":"elective","g":"2-1@47","s":["2-1"]},{"n":"화학","a":"과학","t":"일반","cr":3,"k":"elective","g":"2-1@47","s":["2-1"]},{"n":"생명과학","a":"과학","t":"일반","cr":3,"k":"elective","g":"2-1@47","s":["2-1"]},{"n":"지구과학","a":"과학","t":"일반","cr":3,"k":"elective","g":"2-1@47","s":["2-1"]},{"n":"중국어","a":"제2외국어/한문","t":"일반","cr":3,"k":"elective","g":"2-1@58","s":["2-1"]},{"n":"일본어","a":"제2외국어/한문","t":"일반","cr":3,"k":"elective","g":"2-1@58","s":["2-1"]},{"n":"매체 의사소통","a":"국어","t":"융합","cr":3,"k":"elective","g":"2-2@60","s":["2-2"]},{"n":"인공지능 수학","a":"수학","t":"진로","cr":3,"k":"elective","g":"2-2@60","s":["2-2"]},{"n":"심화 영어","a":"영어","t":"진로","cr":3,"k":"elective","g":"2-2@60","s":["2-2"]},{"n":"세계시민과 지리","a":"사회","t":"일반","cr":3,"k":"elective","g":"2-2@60","s":["2-2"]},{"n":"정치","a":"사회","t":"진로","cr":3,"k":"elective","g":"2-2@60","s":["2-2"]},{"n":"인문학과 윤리","a":"사회","t":"진로","cr":3,"k":"elective","g":"2-2@60","s":["2-2"]},{"n":"역사로 탐구하는 현대 세계","a":"사회","t":"융합","cr":3,"k":"elective","g":"2-2@60","s":["2-2"]},{"n":"역학과 에너지","a":"과학","t":"진로","cr":3,"k":"elective","g":"2-2@60","s":["2-2"]},{"n":"물질과 에너지","a":"과학","t":"진로","cr":3,"k":"elective","g":"2-2@60","s":["2-2"]},{"n":"세포와 물질대사","a":"과학","t":"진로","cr":3,"k":"elective","g":"2-2@60","s":["2-2"]},{"n":"지구시스템과학","a":"과학","t":"진로","cr":3,"k":"elective","g":"2-2@60","s":["2-2"]},{"n":"중국어 회화","a":"제2외국어/한문","t":"진로","cr":3,"k":"elective","g":"2-2@71","s":["2-2"]},{"n":"일본어 회화","a":"제2외국어/한문","t":"진로","cr":3,"k":"elective","g":"2-2@71","s":["2-2"]},{"n":"주제 탐구 독서","a":"국어","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"미적분Ⅱ","a":"수학","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"심화 영어 독해와 작문","a":"영어","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"한국지리 탐구","a":"사회","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"동아시아 역사 기행","a":"사회","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"법과 사회","a":"사회","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"경제","a":"사회","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"윤리와 사상","a":"사회","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"국제 관계의 이해","a":"사회","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"전자기와 양자","a":"과학","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"화학 반응의 세계","a":"과학","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"생물의 유전","a":"과학","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"행성우주과학","a":"과학","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"언어생활 탐구","a":"국어","t":"융합","cr":3,"k":"elective","g":"3-2@86","s":["3-2"]},{"n":"전문 수학","a":"수학","t":"진로","cr":3,"k":"elective","g":"3-2@86","s":["3-2"],"note":"특목고 선택 과목"},{"n":"세계 문화와 영어","a":"영어","t":"융합","cr":3,"k":"elective","g":"3-2@86","s":["3-2"]},{"n":"여행지리","a":"사회","t":"융합","cr":3,"k":"elective","g":"3-2@86","s":["3-2"]},{"n":"사회문제 탐구","a":"사회","t":"융합","cr":3,"k":"elective","g":"3-2@86","s":["3-2"]},{"n":"금융과 경제생활","a":"사회","t":"융합","cr":3,"k":"elective","g":"3-2@86","s":["3-2"]},{"n":"윤리문제 탐구","a":"사회","t":"융합","cr":3,"k":"elective","g":"3-2@86","s":["3-2"]},{"n":"기후변화와 지속가능한 세계","a":"사회","t":"융합","cr":3,"k":"elective","g":"3-2@86","s":["3-2"]},{"n":"과학의 역사와 문화","a":"과학","t":"융합","cr":3,"k":"elective","g":"3-2@86","s":["3-2"]},{"n":"기후변화와 환경생태","a":"과학","t":"융합","cr":3,"k":"elective","g":"3-2@86","s":["3-2"]},{"n":"융합과학 탐구","a":"과학","t":"융합","cr":3,"k":"elective","g":"3-2@86","s":["3-2"]}],"groups":[{"id":"2-1@47","sem":"2-1","cr":12,"pick":4},{"id":"2-1@58","sem":"2-1","cr":3,"pick":1},{"id":"2-2@60","sem":"2-2","cr":12,"pick":4},{"id":"2-2@71","sem":"2-2","cr":3,"pick":1},{"id":"3-1@73","sem":"3-1","cr":12,"pick":4},{"id":"3-2@86","sem":"3-2","cr":12,"pick":4}],"req":[{"label":"국어","cr":8,"c":["공통국어1","공통국어2","문학","독서와 작문","화법과 언어","독서 토론과 글쓰기"]},{"label":"수학","cr":8,"c":["공통수학1","공통수학2","대수","미적분Ⅰ","확률과 통계","실용 통계"]},{"label":"영어","cr":8,"c":["공통영어1","공통영어2","영어Ⅰ","영어Ⅱ","영어 독해와 작문","미디어 영어"]},{"label":"한국사","cr":6,"c":["한국사1","한국사2"]},{"label":"통합사회","cr":8,"c":["통합사회1","통합사회2"]},{"label":"과학 (통합과학·과학탐구실험)","cr":10,"c":["통합과학1","통합과학2","과학탐구실험1","과학탐구실험2"]},{"label":"체육","cr":10,"c":["체육1","체육2","스포츠 생활1","스포츠 생활2","스포츠 문화","스포츠 과학"]},{"label":"예술","cr":10,"c":["음악","미술","음악 감상과 비평","미술 감상과 비평"]},{"label":"기술·가정/정보 · 교양","cr":10,"c":["정보","로봇과 공학세계","진로와 직업","생태와 환경"]},{"label":"제2외국어 (2-1)","cr":3,"c":["중국어","일본어"]},{"label":"제2외국어 (2-2)","cr":3,"c":["중국어 회화","일본어 회화"]}],"counts":{"1-1":10,"1-2":10,"2-1":9,"2-2":9,"3-1":10,"3-2":10}},"2026":{"courses":[{"n":"공통국어1","a":"국어","t":"공통","cr":3,"k":"fixed","s":["1-1"],"alt":[]},{"n":"공통국어2","a":"국어","t":"공통","cr":3,"k":"fixed","s":["1-2"],"alt":[]},{"n":"문학","a":"국어","t":"일반","cr":4,"k":"fixed","s":["2-1"],"alt":[]},{"n":"독서와 작문","a":"국어","t":"일반","cr":4,"k":"fixed","s":["2-2"],"alt":[]},{"n":"화법과 언어","a":"국어","t":"일반","cr":4,"k":"fixed","s":["3-1"],"alt":[]},{"n":"독서 토론과 글쓰기","a":"국어","t":"융합","cr":4,"k":"fixed","s":["3-2"],"alt":[]},{"n":"공통수학1","a":"수학","t":"공통","cr":3,"k":"fixed","s":["1-1"],"alt":[]},{"n":"공통수학2","a":"수학","t":"공통","cr":3,"k":"fixed","s":["1-2"],"alt":[]},{"n":"대수","a":"수학","t":"일반","cr":4,"k":"fixed","s":["2-1"],"alt":[]},{"n":"미적분Ⅰ","a":"수학","t":"일반","cr":4,"k":"fixed","s":["2-2"],"alt":[]},{"n":"확률과 통계","a":"수학","t":"일반","cr":4,"k":"fixed","s":["3-1"],"alt":[]},{"n":"실용 통계","a":"수학","t":"융합","cr":4,"k":"fixed","s":["3-2"],"alt":[]},{"n":"공통영어1","a":"영어","t":"공통","cr":3,"k":"fixed","s":["1-1"],"alt":[]},{"n":"공통영어2","a":"영어","t":"공통","cr":3,"k":"fixed","s":["1-2"],"alt":[]},{"n":"영어Ⅰ","a":"영어","t":"일반","cr":4,"k":"fixed","s":["2-1"],"alt":[]},{"n":"영어Ⅱ","a":"영어","t":"일반","cr":4,"k":"fixed","s":["2-2"],"alt":[]},{"n":"영어 독해와 작문","a":"영어","t":"일반","cr":4,"k":"fixed","s":["3-1"],"alt":[]},{"n":"미디어 영어","a":"영어","t":"융합","cr":4,"k":"fixed","s":["3-2"],"alt":[]},{"n":"한국사1","a":"사회","t":"공통","cr":3,"k":"fixed","s":["1-1"],"alt":[]},{"n":"한국사2","a":"사회","t":"공통","cr":3,"k":"fixed","s":["1-2"],"alt":[]},{"n":"통합사회1","a":"사회","t":"공통","cr":4,"k":"fixed","s":["1-1"],"alt":[]},{"n":"통합사회2","a":"사회","t":"공통","cr":4,"k":"fixed","s":["1-2"],"alt":[]},{"n":"통합과학1","a":"과학","t":"공통","cr":4,"k":"fixed","s":["1-1"],"alt":[]},{"n":"통합과학2","a":"과학","t":"공통","cr":4,"k":"fixed","s":["1-2"],"alt":[]},{"n":"과학탐구실험1","a":"과학","t":"공통","cr":1,"k":"fixed","s":["1-1"],"alt":[]},{"n":"과학탐구실험2","a":"과학","t":"공통","cr":1,"k":"fixed","s":["1-2"],"alt":[]},{"n":"체육1","a":"체육","t":"일반","cr":2,"k":"fixed","s":["1-1"],"alt":[]},{"n":"체육2","a":"체육","t":"일반","cr":2,"k":"fixed","s":["1-2"],"alt":[]},{"n":"스포츠 생활1","a":"체육","t":"융합","cr":2,"k":"fixed","s":["2-1"],"alt":[]},{"n":"스포츠 생활2","a":"체육","t":"융합","cr":2,"k":"fixed","s":["2-2"],"alt":[]},{"n":"스포츠 문화","a":"체육","t":"진로","cr":1,"k":"fixed","s":["3-1"],"alt":[]},{"n":"스포츠 과학","a":"체육","t":"진로","cr":1,"k":"fixed","s":["3-2"],"alt":[]},{"n":"음악","a":"예술","t":"일반","cr":3,"k":"fixed","s":["1-1"],"alt":["1-2"]},{"n":"미술","a":"예술","t":"일반","cr":3,"k":"fixed","s":["1-2"],"alt":["1-1"]},{"n":"음악 감상과 비평","a":"예술","t":"진로","cr":2,"k":"fixed","s":["3-1"],"alt":["3-2"]},{"n":"미술 감상과 비평","a":"예술","t":"진로","cr":2,"k":"fixed","s":["3-2"],"alt":["3-1"]},{"n":"정보","a":"기술∙가정/정보","t":"일반","cr":3,"k":"fixed","s":["1-1"],"alt":["1-2"]},{"n":"로봇과 공학세계","a":"기술∙가정/정보","t":"진로","cr":3,"k":"fixed","s":["1-2"],"alt":["1-1"]},{"n":"진로와 직업","a":"교양","t":"일반","cr":2,"k":"fixed","s":["3-1"],"alt":[]},{"n":"생태와 환경","a":"교양","t":"일반","cr":2,"k":"fixed","s":["3-2"],"alt":[]},{"n":"문학과 영상","a":"국어","t":"진로","cr":3,"k":"elective","g":"2-1@47","s":["2-1"]},{"n":"기하","a":"수학","t":"진로","cr":3,"k":"elective","g":"2-1@47","s":["2-1"]},{"n":"영미 문학 읽기","a":"영어","t":"진로","cr":3,"k":"elective","g":"2-1@47","s":["2-1"]},{"n":"세계사","a":"사회","t":"일반","cr":3,"k":"elective","g":"2-1@47","s":["2-1"]},{"n":"사회와 문화","a":"사회","t":"일반","cr":3,"k":"elective","g":"2-1@47","s":["2-1"]},{"n":"현대사회와 윤리","a":"사회","t":"일반","cr":3,"k":"elective","g":"2-1@47","s":["2-1"]},{"n":"세계시민과 지리","a":"사회","t":"일반","cr":3,"k":"elective","g":"2-1@47","s":["2-1"]},{"n":"물리학","a":"과학","t":"일반","cr":3,"k":"elective","g":"2-1@47","s":["2-1"]},{"n":"화학","a":"과학","t":"일반","cr":3,"k":"elective","g":"2-1@47","s":["2-1"]},{"n":"생명과학","a":"과학","t":"일반","cr":3,"k":"elective","g":"2-1@47","s":["2-1"]},{"n":"지구과학","a":"과학","t":"일반","cr":3,"k":"elective","g":"2-1@47","s":["2-1"]},{"n":"중국어","a":"제2외국어/한문","t":"일반","cr":3,"k":"elective","g":"2-1@58","s":["2-1"]},{"n":"일본어","a":"제2외국어/한문","t":"일반","cr":3,"k":"elective","g":"2-1@58","s":["2-1"]},{"n":"매체 의사소통","a":"국어","t":"융합","cr":3,"k":"elective","g":"2-2@60","s":["2-2"]},{"n":"인공지능 수학","a":"수학","t":"진로","cr":3,"k":"elective","g":"2-2@60","s":["2-2"]},{"n":"심화 영어","a":"영어","t":"진로","cr":3,"k":"elective","g":"2-2@60","s":["2-2"]},{"n":"도시의 미래 탐구","a":"사회","t":"진로","cr":3,"k":"elective","g":"2-2@60","s":["2-2"]},{"n":"정치","a":"사회","t":"진로","cr":3,"k":"elective","g":"2-2@60","s":["2-2"]},{"n":"인문학과 윤리","a":"사회","t":"진로","cr":3,"k":"elective","g":"2-2@60","s":["2-2"]},{"n":"역사로 탐구하는 현대 세계","a":"사회","t":"융합","cr":3,"k":"elective","g":"2-2@60","s":["2-2"]},{"n":"역학과 에너지","a":"과학","t":"진로","cr":3,"k":"elective","g":"2-2@60","s":["2-2"]},{"n":"물질과 에너지","a":"과학","t":"진로","cr":3,"k":"elective","g":"2-2@60","s":["2-2"]},{"n":"세포와 물질대사","a":"과학","t":"진로","cr":3,"k":"elective","g":"2-2@60","s":["2-2"]},{"n":"지구시스템과학","a":"과학","t":"진로","cr":3,"k":"elective","g":"2-2@60","s":["2-2"]},{"n":"중국어 회화","a":"제2외국어/한문","t":"진로","cr":3,"k":"elective","g":"2-2@71","s":["2-2"]},{"n":"일본어 회화","a":"제2외국어/한문","t":"진로","cr":3,"k":"elective","g":"2-2@71","s":["2-2"]},{"n":"주제 탐구 독서","a":"국어","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"미적분Ⅱ","a":"수학","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"심화 영어 독해와 작문","a":"영어","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"한국지리 탐구","a":"사회","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"동아시아 역사 기행","a":"사회","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"법과 사회","a":"사회","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"경제","a":"사회","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"윤리와 사상","a":"사회","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"국제 관계의 이해","a":"사회","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"전자기와 양자","a":"과학","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"화학 반응의 세계","a":"과학","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"생물의 유전","a":"과학","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"행성우주과학","a":"과학","t":"진로","cr":3,"k":"elective","g":"3-1@73","s":["3-1"]},{"n":"언어생활 탐구","a":"국어","t":"융합","cr":3,"k":"elective","g":"3-2@86","s":["3-2"]},{"n":"전문 수학","a":"수학","t":"진로","cr":3,"k":"elective","g":"3-2@86","s":["3-2"],"note":"특목고 선택 과목"},{"n":"세계 문화와 영어","a":"영어","t":"융합","cr":3,"k":"elective","g":"3-2@86","s":["3-2"]},{"n":"여행지리","a":"사회","t":"융합","cr":3,"k":"elective","g":"3-2@86","s":["3-2"]},{"n":"사회문제 탐구","a":"사회","t":"융합","cr":3,"k":"elective","g":"3-2@86","s":["3-2"]},{"n":"금융과 경제생활","a":"사회","t":"융합","cr":3,"k":"elective","g":"3-2@86","s":["3-2"]},{"n":"윤리문제 탐구","a":"사회","t":"융합","cr":3,"k":"elective","g":"3-2@86","s":["3-2"]},{"n":"기후변화와 지속가능한 세계","a":"사회","t":"융합","cr":3,"k":"elective","g":"3-2@86","s":["3-2"]},{"n":"과학의 역사와 문화","a":"과학","t":"융합","cr":3,"k":"elective","g":"3-2@86","s":["3-2"]},{"n":"기후변화와 환경생태","a":"과학","t":"융합","cr":3,"k":"elective","g":"3-2@86","s":["3-2"]},{"n":"융합과학 탐구","a":"과학","t":"융합","cr":3,"k":"elective","g":"3-2@86","s":["3-2"]}],"groups":[{"id":"2-1@47","sem":"2-1","cr":12,"pick":4},{"id":"2-1@58","sem":"2-1","cr":3,"pick":1},{"id":"2-2@60","sem":"2-2","cr":12,"pick":4},{"id":"2-2@71","sem":"2-2","cr":3,"pick":1},{"id":"3-1@73","sem":"3-1","cr":12,"pick":4},{"id":"3-2@86","sem":"3-2","cr":12,"pick":4}],"req":[{"label":"국어","cr":8,"c":["공통국어1","공통국어2","문학","독서와 작문","화법과 언어","독서 토론과 글쓰기"]},{"label":"수학","cr":8,"c":["공통수학1","공통수학2","대수","미적분Ⅰ","확률과 통계","실용 통계"]},{"label":"영어","cr":8,"c":["공통영어1","공통영어2","영어Ⅰ","영어Ⅱ","영어 독해와 작문","미디어 영어"]},{"label":"한국사","cr":6,"c":["한국사1","한국사2"]},{"label":"통합사회","cr":8,"c":["통합사회1","통합사회2"]},{"label":"과학 (통합과학·과학탐구실험)","cr":10,"c":["통합과학1","통합과학2","과학탐구실험1","과학탐구실험2"]},{"label":"체육","cr":10,"c":["체육1","체육2","스포츠 생활1","스포츠 생활2","스포츠 문화","스포츠 과학"]},{"label":"예술","cr":10,"c":["음악","미술","음악 감상과 비평","미술 감상과 비평"]},{"label":"기술·가정/정보 · 교양","cr":10,"c":["정보","로봇과 공학세계","진로와 직업","생태와 환경"]},{"label":"제2외국어 (2-1)","cr":3,"c":["중국어","일본어"]},{"label":"제2외국어 (2-2)","cr":3,"c":["중국어 회화","일본어 회화"]}],"counts":{"1-1":10,"1-2":10,"2-1":9,"2-2":9,"3-1":10,"3-2":10}}};
+const DATA = {};          // 실제로 쓰는 배당표: 내장 + 올린 배당표(같은 입학년도면 올린 것이 우선)
+let CUSTOM = {};          // { "2027": { plan, fileName, sheet, loadedAt } }
+try { CUSTOM = JSON.parse(localStorage.getItem("gy-plans") || "{}") || {}; } catch (e) { CUSTOM = {}; }
+function refreshPlans() {
+  Object.keys(DATA).forEach(k => delete DATA[k]);
+  Object.assign(DATA, BUILTIN);
+  Object.entries(CUSTOM).forEach(([y, v]) => { if (v && v.plan) DATA[y] = v.plan; });
+}
+function saveCustom() { try { localStorage.setItem("gy-plans", JSON.stringify(CUSTOM)); return true; } catch (e) { return false; } }
+refreshPlans();
+const TODAY = new Date();
+const SCHOOL_YEAR = TODAY.getMonth() + 1 >= 3 ? TODAY.getFullYear() : TODAY.getFullYear() - 1;
+let GRADES = {};
+function buildGrades() {
+  GRADES = {};
+  for (let g = 1; g <= 3; g++) { const y = String(SCHOOL_YEAR - g + 1); if (DATA[y]) GRADES[String(g)] = { year: y, sems: Core.policyRange(g) }; }
+  const seg = document.getElementById("gradeSeg"); seg.innerHTML = "";
+  Object.entries(GRADES).forEach(([g, v]) => seg.append(el("button", { type: "button", "data-grade": g, "aria-pressed": String(g === grade), onclick: () => setGrade(g) }, `${g}학년 · ${v.year} 입학`)));
+  document.getElementById("manualEmpty").hidden = Object.keys(GRADES).length > 0;
+  document.getElementById("manualMain").hidden = Object.keys(GRADES).length === 0;
+}
+const SEM_LABEL = s => `${s[0]}학년 ${s[2]}학기`;
+const norm = s => String(s).replace(/\s+/g, "").replace(/Ⅰ/g, "I").replace(/Ⅱ/g, "II").replace(/[·∙ㆍ]/g, "").toLowerCase();
+
+let grade = "2";
+let taken = {};            // "1-1|공통국어1": true
+let isExample = false;
+
+function ctx() {
+  const g = GRADES[grade], d = DATA[g.year];
+  const R = new Set(g.sems);
+  const byName = Object.fromEntries(d.courses.map(c => [c.n, c]));
+  // 교차 이수 쌍: A는 s1 고정·s2 대체, B는 s2 고정·s1 대체
+  const pairs = [];
+  const seen = new Set();
+  d.courses.filter(c => c.k === "fixed" && c.alt.length).forEach(a => {
+    if (seen.has(a.n)) return;
+    const b = d.courses.find(o => o !== a && o.k === "fixed" && o.alt.length &&
+      o.s.join() === a.alt.join() && o.alt.join() === a.s.join() && o.a === a.a);
+    if (!b) return;
+    seen.add(a.n); seen.add(b.n);
+    pairs.push({ a, b, sems: [...a.s, ...a.alt].sort() });
+  });
+  const pairOf = n => pairs.find(p => p.a.n === n || p.b.n === n);
+  return { g, d, R, byName, pairs, pairOf };
+}
+
+function standardFill() {
+  const { g, d, R, pairs } = ctx();
+  taken = {};
+  d.courses.forEach(c => {
+    if (c.k === "fixed" && !c.alt.length) c.s.filter(s => R.has(s)).forEach(s => taken[`${s}|${c.n}`] = true);
+  });
+  pairs.forEach(p => {
+    p.a.s.filter(s => R.has(s)).forEach(s => taken[`${s}|${p.a.n}`] = true);
+    p.b.s.filter(s => R.has(s)).forEach(s => taken[`${s}|${p.b.n}`] = true);
+  });
+  return { d, R };
+}
+
+function loadExample() {
+  const { d, R } = standardFill();
+  // 예시: 일부러 빠진 항목을 둔다
+  const g41 = d.groups.find(x => R.has(x.sem) && x.pick > 1);
+  if (grade !== "1" && g41) {
+    delete taken["1-2|과학탐구실험2"];
+    d.courses.filter(c => c.g === g41.id).slice(0, g41.pick - 1).forEach(c => taken[`${g41.sem}|${c.n}`] = true);
+    d.groups.filter(x => R.has(x.sem) && x.pick === 1).forEach(x => { const c = d.courses.find(c => c.g === x.id); if (c) taken[`${x.sem}|${c.n}`] = true; });
+  } else {
+    delete taken["1-2|한국사2"];
+    delete taken["1-2|정보"]; delete taken["1-2|로봇과 공학세계"];
+    taken["1-2|정보"] = true; // 정보를 두 학기 모두 들은 경우
+  }
+  isExample = true;
+}
+
+function save() {
+  try { localStorage.setItem("gy-verify-" + grade + "-" + GRADES[grade].year, JSON.stringify({ taken, isExample })); localStorage.setItem("gy-verify-grade", grade); } catch (e) {}
+}
+function restore() {
+  try {
+    const raw = localStorage.getItem("gy-verify-" + grade + "-" + GRADES[grade].year);
+    if (raw) { const o = JSON.parse(raw); taken = o.taken || {}; isExample = !!o.isExample; return true; }
+  } catch (e) {}
+  return false;
+}
+
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") e.className = v; else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) e.setAttribute(k, v === true ? "" : v);
+  }
+  kids.flat().forEach(k => k != null && e.append(k.nodeType ? k : document.createTextNode(k)));
+  return e;
+}
+
+function renderInputs() {
+  const { g, d, R, pairs } = ctx();
+  const box = document.getElementById("inputs");
+  box.innerHTML = "";
+  let idn = 0;
+  g.sems.forEach(s => {
+    const fixed = d.courses.filter(c => c.k === "fixed" && !c.alt.length && c.s.includes(s));
+    const ps = pairs.filter(p => p.sems.includes(s));
+    const groups = d.groups.filter(x => x.sem === s);
+    const body = el("div", { class: "sem-body" });
+
+    if (fixed.length) {
+      const grid = el("div", { class: "grid" });
+      fixed.forEach(c => {
+        const key = `${s}|${c.n}`, id = "c" + (idn++);
+        const lab = el("label", { class: "chk" + (taken[key] ? " on" : ""), for: id, "data-key": key },
+          el("input", { type: "checkbox", id, checked: !!taken[key], onchange: e => { toggle(key, e.target.checked); } }),
+          el("span", { class: "nm" }, c.n, el("span", { class: "ar" }, c.a)),
+          el("span", { class: "cr num" }, c.cr + "학점"));
+        grid.append(lab);
+      });
+      body.append(el("div", {}, el("div", { class: "block-title" }, el("span", {}, "학교지정 과목"),
+        el("button", { type: "button", class: "btn small", onclick: () => { fixed.forEach(c => taken[`${s}|${c.n}`] = true); changed(true); } }, "모두 이수로 체크")), grid));
+    }
+
+    if (ps.length) {
+      const wrap = el("div", {}, el("div", { class: "block-title" }, el("span", {}, "교차 이수 과목 (학생마다 학기 순서가 달라요)")));
+      ps.forEach(p => {
+        const cur = taken[`${s}|${p.a.n}`] ? p.a.n : taken[`${s}|${p.b.n}`] ? p.b.n : "";
+        const seg = el("div", { class: "seg", role: "group", "aria-label": `${SEM_LABEL(s)} ${p.a.a} 과목` });
+        [p.a, p.b].forEach(c => seg.append(el("button", { type: "button", "aria-pressed": String(cur === c.n),
+          onclick: () => { setPair(s, p, cur === c.n ? "" : c.n); } }, `${c.n} ${c.cr}`)));
+        wrap.append(el("div", { class: "pair", "data-pair": `${s}|${p.a.n}` }, el("span", { class: "lbl" }, p.a.a), seg));
+      });
+      body.append(wrap);
+    }
+
+    groups.forEach(gr => {
+      const cs = d.courses.filter(c => c.g === gr.id);
+      const n = cs.filter(c => taken[`${s}|${c.n}`]).length;
+      const grid = el("div", { class: "grid" });
+      cs.forEach(c => {
+        const key = `${s}|${c.n}`, id = "c" + (idn++);
+        const input = gr.pick === 1
+          ? el("input", { type: "radio", name: "r" + gr.id, id, checked: !!taken[key], onchange: () => { cs.forEach(o => delete taken[`${s}|${o.n}`]); toggle(key, true); } })
+          : el("input", { type: "checkbox", id, checked: !!taken[key], onchange: e => toggle(key, e.target.checked) });
+        grid.append(el("label", { class: "chk" + (taken[key] ? " on" : ""), for: id },
+          input, el("span", { class: "nm" }, c.n, el("span", { class: "ar" }, c.a + " · " + c.t)),
+          el("span", { class: "cr num" }, c.cr + "학점")));
+      });
+      const title = gr.pick === 1 ? `학년선택 · 택1 (${gr.cr}학점, 필수)` : `학년선택 · 택${gr.pick} (${gr.cr}학점)`;
+      body.append(el("div", {}, el("div", { class: "block-title" }, el("span", {}, title),
+        el("span", { class: "counter num " + (n === gr.pick ? "ok" : "bad") }, `${n} / ${gr.pick} 선택`)), grid));
+    });
+
+    const plan = planCredits(s);
+    box.append(el("section", { class: "card sem" },
+      el("div", { class: "sem-head" }, el("h2", {}, SEM_LABEL(s)),
+        el("span", { class: "meta num" }, `배당 ${plan.cr}학점 · ${d.counts[s]}과목`)), body));
+  });
+
+}
+
+function pasteBox() {
+  const ta = el("textarea", { id: "pasteText", placeholder: "예) 공통국어1\t3\n공통수학1\t3\n음악\t3 ..." });
+  const msg = el("span", { class: "paste-msg", id: "pasteMsg" });
+  return el("details", { class: "card paste" },
+    el("summary", {}, "성적표에서 과목명 붙여넣어 자동 체크"),
+    el("p", {}, "나이스·학생부 성적표의 표를 그대로 복사해 붙여넣으면, 과목명이 일치하는 칸을 찾아 배당표상 학기에 자동으로 체크해요. 띄어쓰기와 Ⅰ/I 표기 차이는 무시합니다. 교차 이수 과목(음악·미술 등)은 기본 학기로 들어가니 순서가 다르면 직접 바꿔 주세요."),
+    ta,
+    el("div", { class: "paste-row" },
+      el("button", { type: "button", class: "btn primary", onclick: applyPaste }, "자동 체크"),
+      el("label", { class: "paste-msg" }, el("input", { type: "checkbox", id: "pasteReset", checked: true }), " 기존 체크를 지우고 적용"),
+      msg));
+}
+
+function applyPaste() {
+  const { g, d, R, pairOf } = ctx();
+  const text = document.getElementById("pasteText").value;
+  const cells = text.split(/[\t\n\r,;|]+/).map(norm).filter(Boolean);
+  const cellSet = new Set(cells);
+  if (document.getElementById("pasteReset").checked) taken = {};
+  const found = [];
+  d.courses.forEach(c => {
+    if (!cellSet.has(norm(c.n))) return;
+    const sems = c.s.filter(s => R.has(s));
+    if (!sems.length) return;
+    sems.forEach(s => {
+      if (c.k === "elective") {
+        const gr = d.groups.find(x => x.id === c.g);
+        if (gr.pick === 1) d.courses.filter(o => o.g === c.g).forEach(o => delete taken[`${s}|${o.n}`]);
+      }
+      const p = pairOf(c.n);
+      if (p) { delete taken[`${s}|${p.a.n}`]; delete taken[`${s}|${p.b.n}`]; }
+      taken[`${s}|${c.n}`] = true;
+    });
+    found.push(c.n);
+  });
+  // 교차 이수 과목 하나만 있으면, 비어 있는 다른 학기에도 넣지 않는다(실제로 미이수일 수 있으므로)
+  const all = d.courses.filter(c => c.s.some(s => R.has(s))).map(c => norm(c.n));
+  const unknown = [...cellSet].filter(x => /[가-힣]/.test(x) && x.length >= 2 && !all.includes(x) && !/^\d/.test(x));
+  isExample = false;
+  changed(true);
+  const m = document.getElementById("pasteMsg");
+  m.textContent = `${found.length}개 과목을 체크했어요.`;
+}
+
+function planCredits(s) {
+  const { d, pairs } = ctx();
+  let cr = 0;
+  d.courses.forEach(c => { if (c.k === "fixed" && !c.alt.length && c.s.includes(s)) cr += c.cr; });
+  pairs.forEach(p => { if (p.sems.includes(s)) cr += p.a.cr; });
+  d.groups.forEach(gr => { if (gr.sem === s) cr += gr.cr; });
+  return { cr };
+}
+
+function toggle(key, on) { if (on) taken[key] = true; else delete taken[key]; changed(true); }
+function setPair(s, p, name) {
+  delete taken[`${s}|${p.a.n}`]; delete taken[`${s}|${p.b.n}`];
+  if (name) taken[`${s}|${name}`] = true;
+  changed(true);
+}
+function changed(userEdit) {
+  if (userEdit && isExample) { /* 예시를 고치기 시작하면 예시 배너는 유지하되 저장 */ }
+  save(); renderInputs(); renderResults();
+}
+
+function validate() {
+  const { g, d, R, pairs, byName } = ctx();
+  const issues = [];
+  // 1) 학교지정 고정 과목
+  d.courses.forEach(c => {
+    if (c.k !== "fixed" || c.alt.length) return;
+    c.s.filter(s => R.has(s)).forEach(s => {
+      if (!taken[`${s}|${c.n}`]) issues.push({ sev: "e", tag: s, text: `${c.n} (${c.a}, ${c.cr}학점) 미이수`, key: `${s}|${c.n}` });
+    });
+  });
+  // 2) 교차 이수 쌍
+  pairs.forEach(p => {
+    const inR = p.sems.filter(s => R.has(s));
+    if (!inR.length) return;
+    const picks = inR.map(s => taken[`${s}|${p.a.n}`] ? p.a.n : taken[`${s}|${p.b.n}`] ? p.b.n : "");
+    inR.forEach((s, i) => { if (!picks[i]) issues.push({ sev: "e", tag: s, text: `${p.a.a}: ${p.a.n} 또는 ${p.b.n} 중 이수 과목이 없음`, pair: `${s}|${p.a.n}` }); });
+    if (inR.length === 2 && picks[0] && picks[0] === picks[1]) {
+      const other = picks[0] === p.a.n ? p.b.n : p.a.n;
+      issues.push({ sev: "e", tag: `${inR[0]}~${inR[1]}`, text: `두 학기 모두 ${picks[0]} 이수 · ${other} 미이수` });
+    }
+  });
+  // 3) 학년선택군
+  d.groups.filter(gr => R.has(gr.sem)).forEach(gr => {
+    const cs = d.courses.filter(c => c.g === gr.id);
+    const n = cs.filter(c => taken[`${gr.sem}|${c.n}`]).length;
+    const what = gr.pick === 1 ? `택1 (${cs.map(c => c.n).join("/")})` : `학년선택 택${gr.pick}`;
+    if (n < gr.pick) issues.push({ sev: "e", tag: gr.sem, text: `${what}: ${n}과목 이수 · ${gr.pick - n}과목(${(gr.pick - n) * cs[0].cr}학점) 부족` });
+    if (n > gr.pick) issues.push({ sev: "w", tag: gr.sem, text: `${what}: ${n}과목 선택 · 배당표보다 ${n - gr.pick}과목 많음` });
+  });
+  // 4) 2·3학년 선택과목 중 국·수·영 최대 15학점(5과목)
+  const kme = Object.keys(taken).map(k => k.split("|")).filter(([s, n]) => byName[n] && byName[n].k === "elective" && ["국어", "수학", "영어"].includes(byName[n].a));
+  const kmeCr = kme.reduce((a, [, n]) => a + byName[n].cr, 0);
+  if (kmeCr > 15 || kme.length > 5) issues.push({ sev: "e", tag: "국·수·영", text: `2·3학년 선택과목 중 국어·수학·영어 ${kmeCr}학점(${kme.length}과목) · 최대 15학점(5과목) 초과` });
+  return issues;
+}
+
+function reqRows() {
+  const { g, d, R, pairs, pairOf, byName } = ctx();
+  return d.req.map(r => {
+    let plan = 0, earned = 0, total = r.cr;
+    const counted = new Set();
+    r.c.forEach(n => {
+      const c = byName[n];
+      if (c.k === "fixed" && !c.alt.length) plan += c.s.filter(s => R.has(s)).length * c.cr;
+      if (c.k === "elective") { const gr = d.groups.find(x => x.id === c.g); if (R.has(gr.sem) && !counted.has(gr.id)) { plan += gr.cr; counted.add(gr.id); } }
+      const p = pairOf(n);
+      if (p && !counted.has(p.a.n)) { plan += p.sems.filter(s => R.has(s)).length * p.a.cr; counted.add(p.a.n); }
+      Object.keys(taken).forEach(k => { const [s, nm] = k.split("|"); if (nm === n && R.has(s)) earned += c.cr; });
+    });
+    return { label: r.label, plan, earned, total };
+  });
+}
+
+function renderResults() {
+  const { g, d, R } = ctx();
+  const issues = validate();
+  const errs = issues.filter(i => i.sev === "e");
+  const rows = reqRows().filter(r => r.plan > 0);
+  const shortReq = rows.filter(r => r.earned < r.plan);
+  const pass = errs.length === 0;
+
+  // 요약
+  const sm = document.getElementById("summary");
+  sm.className = "card summary " + (pass ? "pass" : "fail");
+  const earnedAll = Object.keys(taken).filter(k => R.has(k.split("|")[0])).reduce((a, k) => a + (ctx().byName[k.split("|")[1]]?.cr || 0), 0);
+  const planAll = g.sems.reduce((a, s) => a + planCredits(s).cr, 0);
+  sm.innerHTML = "";
+  sm.append(
+    el("div", { class: "sub" }, `${grade}학년 (${g.year}학년도 입학) · ${g.sems.map(SEM_LABEL).join(", ")} 검사`),
+    el("div", { class: "verdict" }, pass ? "이수 요건 충족" : `미충족 ${errs.length}건`),
+    el("div", { class: "sub num" }, `교과 이수 ${earnedAll} / ${planAll}학점 · 필수 이수 교과 ${rows.length - shortReq.length} / ${rows.length}개 정상`),
+    el("div", { class: "actions" },
+      el("button", { type: "button", class: "btn", onclick: copyReport }, "결과 텍스트 복사"),
+      el("button", { type: "button", class: "btn", onclick: () => { taken = {}; isExample = false; changed(true); renderExampleBar(); } }, "체크 모두 지우기"),
+      el("button", { type: "button", class: "btn", onclick: () => { loadExample(); changed(false); renderExampleBar(); } }, "예시 불러오기")));
+
+  // 이슈 목록
+  const ul = document.getElementById("issues");
+  ul.innerHTML = "";
+  if (!issues.length) ul.append(el("li", { class: "none", style: "background:none;padding:0" }, "빠진 과목이 없어요."));
+  issues.forEach(i => ul.append(el("li", { class: i.sev === "w" ? "w" : "" }, el("span", { class: "tag num" }, i.tag), el("span", {}, i.text))));
+
+  // 미이수 표시
+  document.querySelectorAll(".chk.missing, .pair.missing").forEach(e => e.classList.remove("missing"));
+  issues.forEach(i => {
+    if (i.key) document.querySelector(`.chk[data-key="${CSS.escape(i.key)}"]`)?.classList.add("missing");
+    if (i.pair) document.querySelector(`.pair[data-pair="${CSS.escape(i.pair)}"]`)?.classList.add("missing");
+  });
+
+  // 필수 이수 학점 표
+  const t = document.getElementById("reqTable");
+  t.innerHTML = "";
+  t.append(el("thead", {}, el("tr", {}, el("th", {}, "교과"), el("th", { class: "r" }, "이수"), el("th", { class: "r" }, "기준"), el("th", { class: "r" }, "졸업"), el("th", { class: "r" }, "상태"))));
+  const tb = el("tbody");
+  rows.forEach(r => {
+    const max = Math.max(r.total, r.plan, r.earned);
+    const bar = el("div", { class: "bar" }, el("i", { style: `width:${Math.min(100, r.earned / max * 100)}%` }), el("b", { style: `left:calc(${r.plan / max * 100}% - 1px)` }));
+    const ok = r.earned >= r.plan;
+    tb.append(el("tr", {},
+      el("td", {}, r.label, bar),
+      el("td", { class: "r num" }, String(r.earned)),
+      el("td", { class: "r num" }, String(r.plan)),
+      el("td", { class: "r num" }, String(r.total)),
+      el("td", { class: "r" }, el("span", { class: "pill " + (ok ? "ok" : "bad") }, ok ? "정상" : `${r.plan - r.earned}학점 부족`))));
+  });
+  t.append(tb);
+
+  // 학기별 표
+  const st = document.getElementById("semTable");
+  st.innerHTML = "";
+  st.append(el("thead", {}, el("tr", {}, el("th", {}, "학기"), el("th", { class: "r" }, "이수 학점"), el("th", { class: "r" }, "과목 수"), el("th", { class: "r" }, "상태"))));
+  const sb = el("tbody");
+  g.sems.forEach(s => {
+    const ks = Object.keys(taken).filter(k => k.startsWith(s + "|"));
+    const cr = ks.reduce((a, k) => a + (ctx().byName[k.split("|")[1]]?.cr || 0), 0);
+    const plan = planCredits(s).cr, cnt = d.counts[s];
+    const ok = cr >= plan && ks.length >= cnt;
+    sb.append(el("tr", {}, el("td", {}, SEM_LABEL(s)),
+      el("td", { class: "r num" }, `${cr} / ${plan}`),
+      el("td", { class: "r num" }, `${ks.length} / ${cnt}`),
+      el("td", { class: "r" }, el("span", { class: "pill " + (ok ? "ok" : "bad") }, ok ? "정상" : "부족"))));
+  });
+  st.append(sb);
+
+  document.getElementById("notes").textContent =
+    "검사 기준: " + g.year + "학년도 입학생 학점 배당표. 창의적 체험활동(학기당 3학점)은 검사하지 않아요. 졸업 필수 이수 학점은 3학년까지 모두 이수했을 때 기준이므로, 지금은 '기준' 열과 비교합니다.";
+}
+
+function copyReport() {
+  const { g } = ctx();
+  const issues = validate();
+  const rows = reqRows().filter(r => r.plan > 0);
+  const lines = [`[이수 과목 검증] ${grade}학년 (${g.year} 입학) · ${g.sems.map(SEM_LABEL).join(", ")}`,
+    issues.filter(i => i.sev === "e").length ? `결과: 미충족 ${issues.filter(i => i.sev === "e").length}건` : "결과: 이수 요건 충족", ""];
+  if (issues.length) { lines.push("확인 필요:"); issues.forEach(i => lines.push(`- [${i.tag}] ${i.text}`)); lines.push(""); }
+  lines.push("교과별 (이수/기준/졸업):");
+  rows.forEach(r => lines.push(`- ${r.label}: ${r.earned}/${r.plan}/${r.total}${r.earned < r.plan ? " ← 부족" : ""}`));
+  const text = lines.join("\n");
+  const done = () => toast("결과를 복사했어요.");
+  try { navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text)); } catch (e) { fallbackCopy(text); }
+}
+function fallbackCopy(text) {
+  const ta = el("textarea", { style: "position:fixed;left:-9999px" }); ta.value = text; document.body.append(ta); ta.select();
+  try { document.execCommand("copy"); toast("결과를 복사했어요."); } catch (e) { toast("복사가 막혀 있어요. 화면의 결과를 직접 선택해 복사해 주세요."); }
+  ta.remove();
+}
+let tt;
+function toast(m) { const t = document.getElementById("toast"); t.textContent = m; t.classList.add("show"); clearTimeout(tt); tt = setTimeout(() => t.classList.remove("show"), 1800); }
+
+function renderExampleBar() { document.getElementById("exampleBar").hidden = !isExample; }
+function setGrade(gv) {
+  if (!GRADES[gv]) gv = Object.keys(GRADES)[0];
+  if (!gv) return;
+  grade = gv;
+  document.querySelectorAll("[data-grade]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.grade === grade)));
+  const g = GRADES[grade];
+  document.getElementById("range").innerHTML = `검사 범위 <b>${g.sems.map(SEM_LABEL).join(" → ")}</b>`;
+  if (!restore()) loadExample();
+  save(); renderExampleBar(); renderInputs(); renderResults();
+}
+document.getElementById("clearBtn2").addEventListener("click", () => { taken = {}; isExample = false; changed(true); renderExampleBar(); });
+let start = "2";
+try { start = localStorage.getItem("gy-verify-grade") || "2"; } catch (e) {}
+document.getElementById("pasteHost").append(pasteBox());
+buildGrades();
+setGrade(start);
+/* ---------- 파일 일괄 검사 ---------- */
+const B = { files: [], result: null, st: "issue", grade: "", cls: "", q: "", basis: "peer", open: new Set(), downloads: null };
+const $ = id => document.getElementById(id);
+const semLabel = s => /^\d-\d$/.test(s) ? `${s[0]}-${s[2]}` : s;
+
+function setView(v) {
+  $("batchView").hidden = v !== "batch";
+  $("manualView").hidden = v !== "manual";
+  $("tabBatch").setAttribute("aria-selected", String(v === "batch"));
+  $("tabManual").setAttribute("aria-selected", String(v === "manual"));
+  if (location.hash !== "#" + v) history.replaceState(null, "", "#" + v);
+}
+document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
+
+
+async function readFiles(list) {
+  if (typeof XLSX === "undefined") { toast("엑셀 읽기 모듈을 불러오지 못했어요. 새로고침 후 다시 시도해 주세요."); return; }
+  const arr = [...list];
+  for (const f of arr) {
+    try {
+      const buf = await f.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+      const p = Core.parseRecordSheet(rows, f.name);
+      // 같은 반 파일을 다시 올리면 교체
+      B.files = B.files.filter(x => !(x.grade != null && x.grade === p.grade && x.cls === p.cls));
+      B.files.push(p);
+    } catch (e) {
+      B.files.push({ fileName: f.name, grade: null, cls: null, students: [], recordedSems: [], warnings: ["파일을 읽지 못했어요: " + (e.message || e)] });
+    }
+  }
+  B.files.sort((a, b) => (a.grade ?? 9) - (b.grade ?? 9) || (a.cls ?? 99) - (b.cls ?? 99));
+  B.open.clear();
+  analyze();
+}
+
+function analyze() {
+  // 매번 새로 계산 (runBatch가 파일 객체에 범위 정보를 기록)
+  B.result = B.files.length ? Core.runBatch(B.files, DATA) : null;
+  renderBatch();
+}
+
+$("fileInput").addEventListener("change", e => { readFiles(e.target.files); e.target.value = ""; });
+const drop = $("drop");
+["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => { if (e.dataTransfer.files.length) readFiles(e.dataTransfer.files); });
+$("clearFiles").addEventListener("click", () => { B.files = []; B.open.clear(); analyze(); });
+$("basisSel").querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+  B.basis = b.dataset.basis; $("basisSel").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); renderBatch();
+}));
+$("stFilter").querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+  B.st = b.dataset.st; $("stFilter").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); renderStudents();
+}));
+$("gradeSel").addEventListener("change", e => { B.grade = e.target.value; B.cls = ""; renderFilters(); renderStudents(); });
+$("clsSel").addEventListener("change", e => { B.cls = e.target.value; renderStudents(); });
+$("q").addEventListener("input", e => { B.q = e.target.value.trim(); renderStudents(); });
+
+const visibleIssues = s => s.result.issues;
+const status = s => Core.statusOf(s, B.basis);
+const base = s => Core.baseOf(s, B.basis);
+const short = s => Core.shortOf(s, B.basis);
+const semBase = x => B.basis === "plan" ? x.plan : x.peer;
+const ST_TXT = { fail: "학점 미충족", warn: "과목 확인 필요", ok: "정상" };
+
+function renderBatch() {
+  const has = !!B.result;
+  $("batchEmpty").hidden = has;
+  $("batchResult").hidden = !has;
+  if (!has) return;
+  const R = B.result;
+
+  // 파일 표
+  const ft = $("fileTable"); ft.innerHTML = "";
+  ft.append(el("thead", {}, el("tr", {}, ...["파일", "학년·반", "학생", "적용 배당표", "검사 범위", "메모"].map((h, i) => el("th", { class: i === 2 ? "r" : "" }, h)))));
+  const fb = el("tbody");
+  B.files.forEach(f => {
+    const notes = [...(f.warnings || [])];
+    if (f.grade != null && f.policy && f.range && f.range.length < f.policy.length) {
+      const miss = f.policy.filter(s => !f.range.includes(s));
+      notes.push(`${miss.map(semLabel).join(", ")} 성적이 아직 없어 제외`);
+    }
+    if (f.grade != null && !f.hasPlan) notes.push(`${f.year}학년도 입학생 배당표가 없음`);
+    fb.append(el("tr", {},
+      el("td", {}, f.fileName),
+      el("td", {}, f.grade != null ? `${f.grade}학년 ${f.cls}반` : "–"),
+      el("td", { class: "r num" }, String(f.students.length)),
+      el("td", { class: "num" }, f.year ? `${f.year}학년도 입학` : "–"),
+      el("td", { class: "num" }, f.range && f.range.length ? f.range.map(semLabel).join(" ~ ").replace(/ ~ .* ~ /, " ~ ") : "–"),
+      el("td", {}, notes.length ? el("span", { class: "pill " + (f.grade == null || !f.hasPlan ? "bad" : "na") }, notes.join(" · ")) : "")));
+  });
+  ft.append(fb);
+
+  // 요약 타일
+  const all = R.students;
+  const n = { fail: 0, warn: 0, ok: 0 };
+  all.forEach(s => n[status(s)]++);
+  const tr = all.filter(s => s.result.likelyTransfer && status(s) !== "ok").length;
+  const tiles = $("tiles"); tiles.innerHTML = "";
+  [["", "검사한 학생", all.length, `${B.files.filter(f => f.grade != null).length}개 반`],
+   ["bad", "학점 미충족", n.fail, "기준 학점보다 적게 이수"],
+   ["warn", "과목 확인 필요", n.warn, tr ? `학점은 충족 · 전입생(추정) ${tr}명 포함` : "학점은 충족, 과목 구성이 다름"],
+   ["ok", "정상", n.ok, "학점·과목 모두 충족"]].forEach(([c, k, v, s]) =>
+    tiles.append(el("div", { class: "card tile " + c }, el("div", { class: "k" }, k), el("div", { class: "v" }, String(v)), el("div", { class: "s" }, s))));
+
+  // 학년별 기준 학점
+  const bt = $("baseTable"); bt.innerHTML = "";
+  bt.append(el("thead", {}, el("tr", {}, el("th", {}, "학년"), el("th", {}, "검사 범위"), ...["학기별 기준 (최빈 / 배당표)", "합계 기준 (최빈 / 배당표)", "미충족"].map(h => el("th", { class: "r" }, h)))));
+  const bb = el("tbody");
+  R.baselines.slice().sort((a, b) => a.grade - b.grade).forEach(x => {
+    const list = R.students.filter(s => s.grade === x.grade && s.result.range.join() === x.range.join());
+    const nf = list.filter(s => status(s) === "fail").length;
+    const mismatch = x.planTotal != null && x.peerTotal !== x.planTotal;
+    bb.append(el("tr", {}, el("td", {}, `${x.grade}학년 (${x.year} 입학) · ${x.n}명`),
+      el("td", { class: "num" }, x.range.map(semLabel).join(", ")),
+      el("td", { class: "r num" }, x.bySem.map(b => `${semLabel(b.sem)} ${b.peer} / ${b.plan ?? "–"}`).join(" · ")),
+      el("td", { class: "r num" }, el("b", {}, `${x.peerTotal} / ${x.planTotal ?? "–"}`), mismatch ? el("span", { class: "tagx" }, "최빈값과 배당표가 다름") : null),
+      el("td", { class: "r num" }, `${nf}명`)));
+  });
+  bt.append(bb);
+  // 시수 차이 원인
+  renderCoop();
+  // 반 전체 공통 원인
+  const cw = $("cwList"); cw.innerHTML = "";
+  $("cwWrap").hidden = !R.classwide.length;
+  R.classwide.slice().sort((a, b) => a.grade - b.grade || a.cls - b.cls).forEach(c =>
+    cw.append(el("li", { class: "cw" }, el("span", { class: "tag num" }, `${c.grade}학년 ${c.cls}반`),
+      el("span", {}, `${c.text.replace(" 이수 기록 없음", "")} — ${c.size}명 중 ${c.n}명 기록 없음 (${semLabel(c.sem)})`))));
+
+  renderFilters();
+  renderStudents();
+}
+
+function renderCoop() {
+  const R = B.result;
+  const ds = R.students.map(s => ({ s, d: cdiff(s) })).filter(x => x.d);
+  const more = ds.filter(x => x.d.diff > 0), less = ds.filter(x => x.d.diff < 0);
+  const c = k => ds.filter(x => x.d.cause === k).length;
+  const sum = $("coopSum"); sum.innerHTML = "";
+  [["기준보다 많음", more.length, "co"], ["공동교육과정·온라인 때문", c("coop"), "co"], ["일부만 공동교육과정·온라인", c("mixed"), "co"], ["그 밖의 이유로 많음", more.filter(x => x.d.cause === "other").length, "w"], ["기준보다 적음", less.length, "e"]]
+    .forEach(([k, v, cl]) => sum.append(el("div", { class: "cstat " + cl }, el("span", { class: "num" }, String(v)), el("span", {}, k))));
+  // 과목별 집계
+  const agg = new Map();
+  ds.forEach(({ s, d }) => d.coop.forEach(e => {
+    const k = `${e.kind}|${e.name}|${e.sem}|${e.credit}`;
+    if (!agg.has(k)) agg.set(k, { ...e, students: [] });
+    agg.get(k).students.push(s);
+  }));
+  const t = $("coopTable"); t.innerHTML = "";
+  $("coopWrap").hidden = agg.size === 0;
+  t.append(el("thead", {}, el("tr", {}, el("th", {}, "구분"), el("th", {}, "과목"), el("th", {}, "학기"), el("th", { class: "r" }, "학점"), el("th", { class: "r" }, "학생 수"), el("th", {}, "학생"))));
+  const tb = el("tbody");
+  [...agg.values()].sort((a, b) => a.kind.localeCompare(b.kind) || b.students.length - a.students.length || a.name.localeCompare(b.name)).forEach(a => {
+    tb.append(el("tr", {}, el("td", {}, el("span", { class: "cotag" }, a.kind)), el("td", {}, a.name), el("td", { class: "num" }, a.sem),
+      el("td", { class: "r num" }, String(a.credit)), el("td", { class: "r num" }, `${a.students.length}명`),
+      el("td", { class: "small" }, a.students.sort((x, y) => x.grade - y.grade || x.cls - y.cls || x.no - y.no).map(s => `${s.grade}-${s.cls}-${s.no} ${s.name}`).join(", "))));
+  });
+  t.append(tb);
+}
+
+function renderFilters() {
+  const R = B.result; if (!R) return;
+  const grades = [...new Set(R.students.map(s => s.grade))].sort();
+  const gs = $("gradeSel"); gs.innerHTML = "";
+  gs.append(el("option", { value: "" }, "전체 학년"));
+  grades.forEach(g => gs.append(el("option", { value: String(g), selected: String(g) === B.grade }, `${g}학년`)));
+  const classes = [...new Set(R.students.filter(s => !B.grade || String(s.grade) === B.grade).map(s => `${s.grade}-${s.cls}`))]
+    .sort((a, b) => a.split("-")[0] - b.split("-")[0] || a.split("-")[1] - b.split("-")[1]);
+  const cs = $("clsSel"); cs.innerHTML = "";
+  cs.append(el("option", { value: "" }, "전체 반"));
+  classes.forEach(k => cs.append(el("option", { value: k, selected: k === B.cls }, `${k.split("-")[0]}학년 ${k.split("-")[1]}반`)));
+}
+
+const cdiff = s => Core.creditDiff(s, B.basis);
+const kindsOf = d => [...new Set(d.coop.map(e => e.kind))];
+function coopText(d) {
+  // 예: 공동교육과정 물리학 실험 4학점(2-1), 온라인학교 인간과 경제활동 2학점(2-1)
+  return d.coop.map(e => `${e.kind} ${e.name} ${e.credit}학점(${e.sem})`).join(", ");
+}
+function diffLine(d) {
+  if (!d || d.cause === "none") return "";
+  const sign = v => (v > 0 ? "+" : "") + v;
+  if (d.cause === "coop") return `시수 ${sign(d.diff)}: ${kindsOf(d).join("·")} 과목 때문 → ${coopText(d)}`;
+  if (d.cause === "mixed") return `시수 ${sign(d.diff)}: ${kindsOf(d).join("·")} ${sign(d.coopCr)} (${coopText(d)}) · 그 밖의 차이 ${sign(d.rest)}`;
+  if (d.cause === "coop-in") return `시수는 같음 · ${kindsOf(d).join("·")} 과목 포함 → ${coopText(d)}`;
+  return d.diff > 0 ? `시수 ${sign(d.diff)}: 공동교육과정·온라인 과목 없음 (학점이 다른 과목 등)` : "";
+}
+
+function filtered() {
+  return B.result.students.filter(s => {
+    const st = status(s);
+    if (B.st === "diff") { const d = cdiff(s); if (!d || d.diff === 0) return false; }
+    else if (B.st === "coop") { const d = cdiff(s); if (!d || !d.coop.length) return false; }
+    else if (B.st === "issue" && st === "ok") return false;
+    if (B.st === "fail" && st !== "fail") return false;
+    if (B.grade && String(s.grade) !== B.grade) return false;
+    if (B.cls && `${s.grade}-${s.cls}` !== B.cls) return false;
+    if (B.q && !s.name.includes(B.q)) return false;
+    return true;
+  }).sort((a, b) => a.grade - b.grade || a.cls - b.cls || a.no - b.no);
+}
+
+function renderStudents() {
+  const t = $("stuTable"); t.innerHTML = "";
+  const list = filtered();
+  t.append(el("thead", {}, el("tr", {}, el("th", {}, "학년·반·번호"), el("th", {}, "이름"), el("th", {}, "상태"), el("th", { class: "r" }, "이수 / 기준"), el("th", { class: "r" }, "부족"), el("th", {}, "학기별 부족 · 원인"))));
+  const tb = el("tbody");
+  if (!list.length) tb.append(el("tr", {}, el("td", { colspan: "6", class: "empty" }, B.st === "all" ? "조건에 맞는 학생이 없어요." : "조건에 맞는 미충족·확인 필요 학생이 없어요.")));
+  list.forEach(s => {
+    const key = `${s.grade}-${s.cls}-${s.no}-${s.name}`;
+    const st = status(s);
+    const is = s.result.issues.filter(i => i.sev !== "i");
+    const why = el("div", { class: "why" });
+    const sh = short(s);
+    if (s.credit) s.credit.bySem.forEach(x => { const b = semBase(x); if (b != null && x.earned < b) why.append(el("span", { class: "e" }, `${semLabel(x.sem)} 학기 ${x.earned}/${b}학점 (${b - x.earned}학점 부족)`)); });
+    is.filter(i => i.sev === "e").forEach(i => why.append(el("span", { class: sh ? "c" : "w" }, `${sh ? "원인 · " : ""}${semLabel(i.sem)} ${i.text}${i.classwide ? " [반 전체 공통]" : ""}`)));
+    is.filter(i => i.sev === "w").forEach(i => why.append(el("span", { class: "w" }, `${semLabel(i.sem)} ${i.text}`)));
+    const d = cdiff(s), dl = diffLine(d);
+    if (dl) why.append(el("span", { class: "co" }, dl));
+    if (!why.childNodes.length) why.append(el("span", { class: "c" }, "없음"));
+    const row = el("tr", { class: "srow", tabindex: "0", "aria-expanded": String(B.open.has(key)) },
+      el("td", { class: "num" }, `${s.grade}-${s.cls}-${s.no}`),
+      el("td", {}, s.name, s.result.likelyTransfer ? el("span", { class: "tagx" }, s.result.transfer ? "전입" : "전입 추정") : null),
+      el("td", {}, el("span", { class: "pill " + (st === "ok" ? "ok" : st === "fail" ? "bad" : "na") }, ST_TXT[st])),
+      el("td", { class: "r num" }, `${s.result.credits} / ${base(s) ?? "–"}`,
+        d && d.coop.length ? el("div", {}, ...kindsOf(d).map(k => el("span", { class: "cotag" }, `${k} ${d.coop.filter(e => e.kind === k).reduce((a, e) => a + e.credit, 0)}`))) : null),
+      el("td", { class: "r num" }, sh ? el("b", { style: "color:var(--bad)" }, `−${sh}`) : "0"),
+      el("td", {}, why));
+    const toggleRow = () => { B.open.has(key) ? B.open.delete(key) : B.open.add(key); renderStudents(); };
+    row.addEventListener("click", toggleRow);
+    row.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleRow(); } });
+    tb.append(row);
+    if (B.open.has(key)) tb.append(detailRow(s));
+  });
+  t.append(tb);
+  const total = B.result.students.length;
+  $("stuCount").textContent = `${list.length}명 표시 · 전체 ${total}명 · 행을 누르면 학기별 이수 과목과 교과별 학점이 펼쳐져요.`;
+}
+
+function detailRow(s) {
+  const left = el("div", {});
+  left.append(el("h4", {}, "교과별 이수 학점 (이수 / 기준 / 졸업)"));
+  const t = el("table", {});
+  s.result.req.forEach(r => t.append(el("tr", {}, el("td", {}, r.label), el("td", { class: "r num" }, `${r.earned} / ${r.plan} / ${r.total}`),
+    el("td", { class: "r" }, el("span", { class: "pill " + (r.earned >= r.plan ? "ok" : "bad") }, r.earned >= r.plan ? "정상" : `${r.plan - r.earned}학점 부족`)))));
+  left.append(t);
+  const info = s.result.issues.filter(i => i.sev === "i");
+  if (info.length) {
+    left.append(el("h4", { style: "margin-top:12px" }, "참고"));
+    const w = el("div", { class: "why" }); info.forEach(i => w.append(el("span", { class: "c" }, `${semLabel(i.sem)} ${i.text}`))); left.append(w);
+  }
+  const right = el("div", {});
+  right.append(el("h4", {}, "학기별 이수 과목 (성적 파일 기준)"));
+  const sl = el("div", { class: "semlist" });
+  Core.SEM_ORDER.forEach(sem => {
+    const es = s.entries.filter(e => e.sem === sem);
+    if (!es.length) return;
+    const inRange = s.result.range.includes(sem);
+    const line = el("div", {}, el("b", { class: "num" }, sem + (inRange ? "" : "*")));
+    es.forEach((e, i) => { if (i) line.append(", "); line.append(el("span", { class: e.note ? "x" : "" }, `${e.name}${e.note ? `(${e.note})` : ""}`)); });
+    sl.append(line);
+  });
+  right.append(sl);
+  if (s.entries.some(e => !s.result.range.includes(e.sem))) right.append(el("div", { class: "legend" }, "* 검사 범위 밖 학기"));
+  return el("tr", { class: "detail" }, el("td", { colspan: "6" }, el("div", { class: "dgrid" }, left, right)));
+}
+
+function exportRows() {
+  const list = filtered();
+  return list.map(s => {
+    const is = visibleIssues(s);
+    return {
+      학년: s.grade, 반: s.cls, 번호: s.no, 이름: s.name, 상태: ST_TXT[status(s)],
+      전입: s.result.transfer ? "전입" : s.result.likelyTransfer ? "전입 추정" : "",
+      이수학점: s.result.credits, 기준학점: base(s), 부족학점: short(s),
+      학기별: s.credit ? s.credit.bySem.map(x => `${x.sem} ${x.earned}/${semBase(x)}`).join(", ") : "",
+      시수차이: cdiff(s) ? cdiff(s).diff : "",
+      차이원인: (() => { const d = cdiff(s); if (!d) return ""; return { coop: "공동교육과정·온라인 과목", mixed: "공동교육과정·온라인 과목 + 그 밖의 차이", other: d.diff > 0 ? "그 밖의 차이(학점이 다른 과목 등)" : "", "coop-in": "시수 같음(공동교육과정·온라인 과목 포함)", none: "" }[d.cause] || (d.diff < 0 ? "부족" : ""); })(),
+      공동교육과정_온라인과목: cdiff(s) ? coopText(cdiff(s)) : "",
+      빠진과목: is.filter(i => i.sev === "e").map(i => `[${i.sem}] ${i.text}${i.classwide ? " (반 전체 공통)" : ""}`).join("\n"),
+      확인필요: is.filter(i => i.sev === "w").map(i => `[${i.sem}] ${i.text}`).join("\n"),
+      참고: s.result.issues.filter(i => i.sev === "i").map(i => `[${i.sem}] ${i.text}`).join("\n"),
+      검사범위: s.result.range.join(",")
+    };
+  });
+}
+
+$("copyTsv").addEventListener("click", () => {
+  const rows = exportRows();
+  if (!rows.length) { toast("복사할 학생이 없어요."); return; }
+  const cols = Object.keys(rows[0]);
+  const esc = v => { const s = String(v ?? ""); return /[\t\n"]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const text = [cols.join("\t"), ...rows.map(r => cols.map(c => esc(r[c])).join("\t"))].join("\n");
+  try { navigator.clipboard.writeText(text).then(() => toast(`${rows.length}명을 복사했어요. 엑셀에 붙여넣으세요.`), () => fallbackCopy(text)); } catch (e) { fallbackCopy(text); }
+});
+
+$("saveXlsx").addEventListener("click", async () => {
+  if (!B.downloads) return;
+  const wb = XLSX.utils.book_new();
+  const rows = exportRows();
+  const ws1 = XLSX.utils.json_to_sheet(rows.length ? rows : [{ 결과: "표시 중인 학생이 없어요" }]);
+  ws1["!cols"] = [5, 4, 5, 9, 12, 8, 8, 8, 8, 28, 8, 26, 50, 60, 40, 50, 16].map(w => ({ wch: w }));
+  XLSX.utils.book_append_sheet(wb, ws1, "학생별 결과");
+  const items = [];
+  filtered().forEach(s => visibleIssues(s).forEach(i => items.push({ 학년: s.grade, 반: s.cls, 번호: s.no, 이름: s.name, 구분: i.sev === "e" ? "빠진 과목" : i.sev === "w" ? "확인 필요" : "참고", 학기: i.sem, 내용: i.text, 반전체누락: i.classwide ? "예" : "" })));
+  if (items.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(items), "항목별");
+  if (B.result.classwide.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(B.result.classwide.map(c => ({ 학년: c.grade, 반: c.cls, 학기: c.sem, 내용: c.text, 누락학생: c.n, 반인원: c.size }))), "반 전체 공통");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(B.result.baselines.map(x => ({ 학년: x.grade, 입학년도: x.year, 검사범위: x.range.join(","), 학생수: x.n, 최빈학점: x.peerTotal, 배당표학점: x.planTotal, 학기별: x.bySem.map(b => `${b.sem} ${b.peer}/${b.plan}`).join(", ") }))), "기준 학점");
+  const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+  const d = new Date(); const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  try { await B.downloads.save({ filename: `이수검사결과_${stamp}.xlsx`, data: buf }); toast("엑셀 파일을 저장했어요."); }
+  catch (e) {
+    if (e && e.code === "declined") return;
+    if (e && e.code === "rate_limited") { toast("저장 창이 이미 열려 있어요. 잠시 후 다시 눌러 주세요."); return; }
+    toast("이 화면에서는 저장할 수 없어요. '표 복사'를 써 주세요.");
+  }
+});
+
+// claude.ai 안에서는 downloads 기능, 그 밖(예: GitHub Pages)에서는 브라우저 기본 다운로드
+const anchorSaver = {
+  save: async ({ filename, data }) => {
+    const blob = data instanceof Blob ? data : new Blob([data]);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    return { status: "saved" };
+  }
+};
+(async () => {
+  try {
+    if (window.claude && typeof window.claude.use === "function") {
+      const d = await window.claude.use("downloads");
+      if (d) { B.downloads = d; $("saveXlsx").hidden = false; }
+    } else { B.downloads = anchorSaver; $("saveXlsx").hidden = false; }
+  } catch (e) {}
+})();
+renderBatch();
+
+/* ---------- 화면 테마 ---------- */
+const HOST_THEME = document.documentElement.getAttribute("data-theme");
+function applyTheme(mode) {
+  const root = document.documentElement;
+  if (mode === "light" || mode === "dark") root.setAttribute("data-theme", mode);
+  else if (HOST_THEME) root.setAttribute("data-theme", HOST_THEME);
+  else root.removeAttribute("data-theme");
+  document.querySelectorAll("[data-theme-set]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.themeSet === mode)));
+  try { localStorage.setItem("gy-theme", mode); } catch (e) {}
+}
+document.querySelectorAll("[data-theme-set]").forEach(b => b.addEventListener("click", () => applyTheme(b.dataset.themeSet)));
+let THEME = "system";
+try { THEME = localStorage.getItem("gy-theme") || "system"; } catch (e) {}
+applyTheme(THEME);
+
+/* ---------- 학점 배당표 관리 ---------- */
+function addPlan(parsed, fileName) {
+  CUSTOM[String(parsed.year)] = { plan: parsed.plan, fileName, sheet: parsed.sheet, loadedAt: new Date().toISOString().slice(0, 10), warnings: parsed.warnings };
+  const kept = saveCustom();
+  plansChanged();
+  return kept;
+}
+function removePlan(year) {
+  delete CUSTOM[year];
+  saveCustom();
+  if (PV.year === year && !BUILTIN[year]) PV.year = null;
+  plansChanged();
+}
+function plansChanged() {
+  refreshPlans();
+  buildGrades();
+  setGrade(grade);
+  renderPlans();
+  if (B.files.length) analyze();
+}
+
+async function readPlanFiles(list) {
+  if (typeof XLSX === "undefined") { toast("엑셀 읽기 모듈을 불러오지 못했어요. 새로고침 후 다시 시도해 주세요."); return; }
+  const msgs = [];
+  for (const f of [...list]) {
+    try {
+      const wb = XLSX.read(await f.arrayBuffer(), { type: "array" });
+      const p = Core.parsePlanWorkbook(wb, XLSX);
+      const kept = addPlan(p, f.name);
+      PV.year = String(p.year);
+      msgs.push(`${p.year}학년도 입학 배당표를 적용했어요${kept ? "" : " (이 브라우저에 저장은 안 됨)"}.`);
+    } catch (e) { msgs.push(`${f.name}: ${e.message || e}`); }
+  }
+  renderPlans();
+  toast(msgs.join(" "));
+}
+$("planInput").addEventListener("change", e => { readPlanFiles(e.target.files); e.target.value = ""; });
+const pdrop = $("planDrop");
+["dragenter", "dragover"].forEach(ev => pdrop.addEventListener(ev, e => { e.preventDefault(); pdrop.classList.add("over"); }));
+["dragleave", "drop"].forEach(ev => pdrop.addEventListener(ev, e => { e.preventDefault(); pdrop.classList.remove("over"); }));
+pdrop.addEventListener("drop", e => { if (e.dataTransfer.files.length) readPlanFiles(e.dataTransfer.files); });
+
+const PV = { year: null };
+function renderPlans() {
+  const t = $("planTable"); t.innerHTML = "";
+  t.append(el("thead", {}, el("tr", {}, ...["입학년도", "지금 학년", "출처", "과목 수", "학기별 학점", ""].map((h, i) => el("th", { class: i === 3 ? "r" : "" }, h)))));
+  const tb = el("tbody");
+  const years = Object.keys(DATA).sort((a, b) => b - a);
+  years.forEach(y => {
+    const plan = DATA[y], cu = CUSTOM[y];
+    const g = SCHOOL_YEAR - +y + 1;
+    const sems = Core.SEM_ORDER.map(s => `${s[0]}-${s[2]} ${Core.planSemCredits(plan, s)}`).join(" · ");
+    tb.append(el("tr", {},
+      el("td", { class: "num" }, el("b", {}, `${y}학년도`)),
+      el("td", {}, g >= 1 && g <= 3 ? `${g}학년` : g > 3 ? "졸업" : "입학 전"),
+      el("td", {}, cu ? el("span", { class: "src up" }, `올린 파일 · ${cu.fileName} (${cu.loadedAt})`) : el("span", { class: "src" }, "기본 내장")),
+      el("td", { class: "r num" }, String(plan.courses.length)),
+      el("td", { class: "num" }, sems),
+      el("td", { class: "r" },
+        el("button", { type: "button", class: "btn small", onclick: () => { PV.year = y; renderPlans(); $("planPreview").scrollIntoView({ block: "nearest" }); } }, "미리보기"), " ",
+        cu ? el("button", { type: "button", class: "btn small", onclick: () => removePlan(y) }, BUILTIN[y] ? "기본으로 되돌리기" : "삭제") : null)));
+  });
+  t.append(tb);
+  $("planNote").textContent = `학년은 ${SCHOOL_YEAR}학년도 기준이에요. 올린 배당표는 이 브라우저에만 저장되고, 다른 사람이 이 페이지를 열면 기본 내장 배당표가 보여요.`;
+  renderPlanPreview();
+}
+
+function renderPlanPreview() {
+  const box = $("planPreview");
+  const y = PV.year && DATA[PV.year] ? PV.year : null;
+  box.hidden = !y; box.innerHTML = "";
+  if (!y) return;
+  const plan = DATA[y], cu = CUSTOM[y];
+  const pairs = [];
+  plan.courses.filter(c => c.k === "fixed" && c.alt.length).forEach(a => {
+    const b = plan.courses.find(o => o !== a && o.k === "fixed" && o.alt.length && o.a === a.a && o.s.join() === a.alt.join());
+    if (b && !pairs.some(p => p.includes(a.n))) pairs.push([a.n, b.n]);
+  });
+  box.append(el("div", { class: "row-between" }, el("h3", {}, `${y}학년도 입학 배당표 미리보기`),
+    el("button", { type: "button", class: "btn small", onclick: () => { PV.year = null; renderPlanPreview(); } }, "닫기")));
+  if (cu && cu.warnings && cu.warnings.length) box.append(el("div", { class: "legend" }, "읽으면서 뺀 행: " + cu.warnings.join(" · ")));
+  const grid = el("div", { class: "plan-grid" });
+  Core.SEM_ORDER.forEach(s => {
+    const fixed = plan.courses.filter(c => c.k === "fixed" && !c.alt.length && c.s.includes(s));
+    const alts = pairs.filter(p => { const a = plan.courses.find(c => c.n === p[0]); return [...a.s, ...a.alt].includes(s); });
+    const groups = plan.groups.filter(g => g.sem === s);
+    const ul = el("ul");
+    fixed.forEach(c => ul.append(el("li", {}, el("span", {}, c.n), el("span", { class: "num" }, `${c.cr}`))));
+    alts.forEach(p => { const a = plan.courses.find(c => c.n === p[0]); ul.append(el("li", {}, el("span", {}, `${p[0]} ⇄ ${p[1]}`), el("span", { class: "num" }, `${a.cr}`))); });
+    const card = el("div", { class: "plan-sem" }, el("h4", {}, el("span", {}, `${s[0]}학년 ${s[2]}학기`), el("span", { class: "num" }, `${Core.planSemCredits(plan, s)}학점${plan.counts[s] ? ` · ${plan.counts[s]}과목` : ""}`)), ul);
+    groups.forEach(g => card.append(el("div", { class: "grp" }, el("b", {}, `택${g.pick} · ${g.cr}학점`), " ", plan.courses.filter(c => c.g === g.id).map(c => c.n).join(", "))));
+    grid.append(card);
+  });
+  box.append(grid);
+  const rl = el("div", { class: "reqlist" });
+  plan.req.forEach(r => rl.append(el("span", {}, `${r.label} ${r.cr}학점`)));
+  box.append(el("h3", { style: "margin-top:14px" }, "필수 이수 학점"), rl,
+    el("div", { class: "legend" }, "⇄ 표시는 두 학기에 걸쳐 하나씩 듣는 교차 이수 과목이에요. 숫자는 운영 학점이에요."));
+}
+
+/* 일괄 검사 드롭존에 배당표가 섞여 들어와도 알아보기 */
+const _readFiles = readFiles;
+readFiles = async function (list) {
+  if (typeof XLSX === "undefined") return _readFiles(list);
+  const records = [], planMsgs = [];
+  for (const f of [...list]) {
+    try {
+      const wb = XLSX.read(await f.arrayBuffer(), { type: "array" });
+      if (Core.isPlanWorkbook(wb)) {
+        const p = Core.parsePlanWorkbook(wb, XLSX);
+        CUSTOM[String(p.year)] = { plan: p.plan, fileName: f.name, sheet: p.sheet, loadedAt: new Date().toISOString().slice(0, 10), warnings: p.warnings };
+        saveCustom(); planMsgs.push(`${p.year}학년도 입학 배당표 적용`);
+      } else records.push(f);
+    } catch (e) { records.push(f); }
+  }
+  if (planMsgs.length) { refreshPlans(); buildGrades(); setGrade(grade); renderPlans(); toast(planMsgs.join(", ") + "했어요."); }
+  if (records.length) await _readFiles(records); else if (B.files.length) analyze();
+};
+
+/* 탭 3개 라우팅 */
+setView = function (v) {
+  const views = ["batch", "transfer", "manual", "plans"].filter(k => document.getElementById(k + "View"));
+  if (!views.includes(v)) v = "batch";
+  views.forEach(k => {
+    $(k + "View").hidden = k !== v;
+    $("tab" + k[0].toUpperCase() + k.slice(1)).setAttribute("aria-selected", String(k === v));
+  });
+  if (location.hash !== "#" + v) history.replaceState(null, "", "#" + v);
+};
+window.addEventListener("hashchange", () => setView(location.hash.slice(1)));
+setView(location.hash.slice(1));
+renderPlans();
+
+/* ---------- 전입생 검증 ---------- */
+const TV = { list: [], verdict: "all", grade: "" };
+const VERDICT = {
+  credit: { t: "학점 부족", c: "bad", d: "같은 학년 기준 학점보다 적게 이수" },
+  makeup: { t: "보충 이수 확인", c: "bad", d: "빠진 과목을 대신할 같은 교과 과목이 없거나 학점이 모자람" },
+  substitute: { t: "대체 인정 시 충족", c: "warn", d: "빠진 과목마다 같은 교과의 대체 후보가 있음" },
+  area: { t: "필수 교과 학점 확인", c: "warn", d: "과목은 맞지만 학점이 달라 필수 이수 학점이 모자람" },
+  ok: { t: "충족", c: "ok", d: "학점·과목 모두 다른 학생과 같은 수준" }
+};
+
+function computeTransfers() {
+  TV.list = B.result ? Core.analyzeTransfers(B.result, DATA) : [];
+  renderTransfers();
+}
+
+function renderTransfers() {
+  const has = !!B.result;
+  $("trEmpty").hidden = has;
+  $("trResult").hidden = !has;
+  if (!has) return;
+  const L = TV.list;
+  const cnt = k => L.filter(x => x.verdict === k).length;
+  const conf = L.filter(x => x.kind === "confirmed").length;
+  const tiles = $("trTiles"); tiles.innerHTML = "";
+  [["", "전입생 후보", L.length, `비고 '전입학' ${conf}명 · 추정 ${L.length - conf}명`],
+   ["bad", "보충 이수 확인", cnt("makeup") + cnt("credit"), cnt("credit") ? `이 중 학점 부족 ${cnt("credit")}명` : "대체할 과목이 없는 학생"],
+   ["warn", "대체 인정 시 충족", cnt("substitute") + cnt("area"), cnt("area") ? `필수 교과 학점 확인 ${cnt("area")}명 포함` : "학교의 대체 인정 판단 필요"],
+   ["ok", "충족", cnt("ok"), "확인할 차이 없음"]].forEach(([c, k, v, s]) =>
+    tiles.append(el("div", { class: "card tile " + c }, el("div", { class: "k" }, k), el("div", { class: "v" }, String(v)), el("div", { class: "s" }, s))));
+
+  const gs = $("trGrade"); gs.innerHTML = "";
+  gs.append(el("option", { value: "" }, "전체 학년"));
+  [...new Set(L.map(x => x.s.grade))].sort().forEach(g => gs.append(el("option", { value: String(g), selected: String(g) === TV.grade }, `${g}학년`)));
+
+  const box = $("trList"); box.innerHTML = "";
+  const shown = trFiltered();
+  if (!shown.length) box.append(el("div", { class: "card panel empty" }, L.length ? "조건에 맞는 학생이 없어요." : "다른 학생과 과목 구성이 유독 다른 학생이 없어요."));
+  shown.forEach(x => box.append(trCard(x)));
+  $("trCount").textContent = `${shown.length}명 표시 · 후보 ${L.length}명 · 검사 학생 ${B.result.students.length}명`;
+}
+
+function trFiltered() {
+  return TV.list.filter(x => {
+    if (TV.grade && String(x.s.grade) !== TV.grade) return false;
+    if (TV.verdict === "need" && !["credit", "makeup"].includes(x.verdict)) return false;
+    if (TV.verdict === "sub" && !["substitute", "area"].includes(x.verdict)) return false;
+    if (TV.verdict === "ok" && x.verdict !== "ok") return false;
+    return true;
+  });
+}
+
+function trCard(x) {
+  const s = x.s, V = VERDICT[x.verdict];
+  const head = el("div", { class: "tr-head" },
+    el("div", { class: "tr-id" }, el("b", {}, s.name), el("span", { class: "num muted" }, `${s.grade}학년 ${s.cls}반 ${s.no}번`),
+      el("span", { class: "tagx" + (x.kind === "confirmed" ? "" : " soft") }, x.kind === "confirmed" ? "비고 '전입학'" : "전입 추정")),
+    el("div", { class: "tr-v" }, el("span", { class: "num muted" }, s.credit ? `이수 ${s.credit.earned} / 기준 ${s.credit.peerTotal}학점` : ""),
+      el("span", { class: "pill " + (V.c === "ok" ? "ok" : V.c === "bad" ? "bad" : "na") }, V.t)));
+
+  // 1. 전입으로 본 근거
+  const ev = el("div", { class: "tr-col" }, el("h4", {}, "전입으로 본 근거"));
+  const evl = el("ul", { class: "tr-ul" });
+  if (x.noted.length) {
+    const sems = [...new Set(x.noted.map(e => e.sem))].join(", ");
+    evl.append(el("li", {}, `비고 '전입학' 과목 ${x.noted.length}개 (${sems})`,
+      x.after.length ? el("span", { class: "muted" }, ` → ${x.after.join(", ")}부터 우리 학교 이수`) : null));
+  }
+  x.rare.forEach(r => evl.append(el("li", {}, `${r.e.name} ${r.e.credit}학점 (${r.e.sem})`, el("span", { class: "muted" }, ` · 학년에서 ${r.count}명만 이수`))));
+  x.crDiff.forEach(r => evl.append(el("li", {}, `${r.e.name} ${r.e.credit}학점 (${r.e.sem})`, el("span", { class: "muted" }, ` · 다른 학생은 ${r.usual}학점`))));
+  ev.append(evl);
+
+  // 2. 빠진 과목과 대체 후보
+  const nd = el("div", { class: "tr-col" }, el("h4", {}, "빠진 과목과 대체 후보"));
+  const ndl = el("ul", { class: "tr-ul" });
+  if (!x.needs.length) ndl.append(el("li", { class: "muted" }, "배당표 과목은 모두 이수했어요."));
+  x.needs.forEach(n => {
+    const st = n.covered ? ["ok", "대체 가능"] : n.partial ? ["warn", `${n.cr - n.subCr}학점 모자람`] : ["bad", "대체 후보 없음"];
+    ndl.append(el("li", {},
+      el("div", {}, el("b", {}, n.label), el("span", { class: "muted num" }, ` ${n.cr}학점 · ${n.sem}`), n.classwide ? el("span", { class: "muted" }, " · 반 전체 공통") : null),
+      el("div", { class: "sub " + st[0] }, n.subs.length ? `→ ${n.subs.map(e => `${e.name} ${e.credit}학점(${e.sem})`).join(", ")} · ${st[1]}` : `→ ${st[1]}`)));
+  });
+  nd.append(ndl);
+  if (x.reqShort.length) {
+    nd.append(el("h4", { style: "margin-top:10px" }, "필수 이수 학점이 모자란 교과"));
+    nd.append(el("div", { class: "chips" }, ...x.reqShort.map(r => el("span", { class: "chip bad" }, `${r.label} ${r.earned}/${r.plan}`))));
+  }
+
+  // 3. 교과군별 학점 비교
+  const ar = el("div", { class: "tr-col" }, el("h4", {}, "교과군별 학점 (본인 / 같은 학년 대부분)"));
+  const at = el("table", { class: "mini" });
+  x.areas.slice().sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff) || b.usual - a.usual).forEach(a => {
+    at.append(el("tr", { class: a.diff ? "" : "same" }, el("td", {}, a.label), el("td", { class: "r num" }, `${a.earned} / ${a.usual}`),
+      el("td", { class: "r num " + (a.diff < 0 ? "neg" : a.diff > 0 ? "pos" : "") }, a.diff ? (a.diff > 0 ? "+" : "") + a.diff : "")));
+  });
+  ar.append(at);
+  const coopX = x.extra.filter(e => /공동교육|온라인|타기관|위탁|학교\s*밖/.test(e.note));
+  const otherX = x.extra.filter(e => !coopX.includes(e));
+  if (otherX.length) ar.append(el("div", { class: "legend" }, `대체에 쓰지 않은 배당표 외 과목: ${otherX.map(e => `${e.name}(${areaShort(e.area)})`).join(", ")}`));
+  if (coopX.length) ar.append(el("div", { class: "legend" }, "공동교육과정·온라인 과목: ", ...coopX.map(e => el("span", { class: "cotag" }, `${Core.coopKind(e.note)} ${e.name} ${e.credit}학점(${e.sem})`))));
+
+  return el("div", { class: "card tr-card " + V.c }, head, el("div", { class: "tr-body" }, ev, nd, ar));
+}
+const areaShort = a => String(a || "").replace(/\(.*?\)/g, "");
+
+function trRows() {
+  return trFiltered().map(x => ({
+    학년: x.s.grade, 반: x.s.cls, 번호: x.s.no, 이름: x.s.name,
+    구분: x.kind === "confirmed" ? "비고 전입학" : "전입 추정", 판정: VERDICT[x.verdict].t,
+    이수학점: x.s.credit?.earned, 기준학점: x.s.credit?.peerTotal,
+    전입근거: [x.noted.length ? `전입학 과목 ${x.noted.length}개(${[...new Set(x.noted.map(e => e.sem))].join(",")})` : "",
+      ...x.rare.map(r => `${r.e.name}(학년 ${r.count}명)`), ...x.crDiff.map(r => `${r.e.name} ${r.e.credit}학점(보통 ${r.usual})`)].filter(Boolean).join("\n"),
+    빠진과목_대체후보: x.needs.map(n => `${n.label} ${n.cr}학점 → ${n.subs.length ? n.subs.map(e => `${e.name} ${e.credit}`).join("+") : "없음"}${n.covered ? " (대체 가능)" : n.partial ? " (일부)" : ""}`).join("\n"),
+    필수교과부족: x.reqShort.map(r => `${r.label} ${r.earned}/${r.plan}`).join("\n"),
+    교과군차이: x.areas.filter(a => a.diff).map(a => `${a.label} ${a.earned}/${a.usual}`).join(", ")
+  }));
+}
+
+$("trVerdict").querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+  TV.verdict = b.dataset.v; $("trVerdict").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); renderTransfers();
+}));
+$("trGrade").addEventListener("change", e => { TV.grade = e.target.value; renderTransfers(); });
+$("trGoBatch").addEventListener("click", () => setView("batch"));
+$("trCopy").addEventListener("click", () => {
+  const rows = trRows();
+  if (!rows.length) { toast("복사할 학생이 없어요."); return; }
+  const cols = Object.keys(rows[0]);
+  const esc = v => { const s = String(v ?? ""); return /[\t\n"]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const text = [cols.join("\t"), ...rows.map(r => cols.map(c => esc(r[c])).join("\t"))].join("\n");
+  try { navigator.clipboard.writeText(text).then(() => toast(`${rows.length}명을 복사했어요.`), () => fallbackCopy(text)); } catch (e) { fallbackCopy(text); }
+});
+$("trSave").addEventListener("click", async () => {
+  if (!B.downloads) return;
+  const rows = trRows();
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ 결과: "표시 중인 학생이 없어요" }]);
+  ws["!cols"] = [5, 4, 5, 9, 11, 16, 8, 8, 40, 50, 30, 50].map(w => ({ wch: w }));
+  XLSX.utils.book_append_sheet(wb, ws, "전입생 검증");
+  const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+  const d = new Date(); const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  try { await B.downloads.save({ filename: `전입생검증_${stamp}.xlsx`, data: buf }); toast("엑셀 파일을 저장했어요."); }
+  catch (e) { if (e && e.code === "declined") return; toast(e && e.code === "rate_limited" ? "저장 창이 이미 열려 있어요. 잠시 후 다시 눌러 주세요." : "이 화면에서는 저장할 수 없어요. '표 복사'를 써 주세요."); }
+});
+(async () => { for (let i = 0; i < 40 && !B.downloads; i++) await new Promise(r => setTimeout(r, 300)); if (B.downloads) $("trSave").hidden = false; })();
+
+// 일괄 검사 결과가 바뀔 때마다 전입생 검증도 다시 계산
+const _analyze = analyze;
+analyze = function () { _analyze(); computeTransfers(); };
+setView = (function (prev) {
+  return function (v) {
+    const views = ["batch", "transfer", "manual", "plans"];
+    if (!views.includes(v)) v = "batch";
+    views.forEach(k => { $(k + "View").hidden = k !== v; $("tab" + k[0].toUpperCase() + k.slice(1)).setAttribute("aria-selected", String(k === v)); });
+    if (location.hash !== "#" + v) history.replaceState(null, "", "#" + v);
+  };
+})(setView);
+setView(location.hash.slice(1));
+computeTransfers();
+
+/* ---------- 점검 결과 보고서 (HTML / PDF) ---------- */
+const REP_CSS = `
+.rep { font-family: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; color: #1d2421; background: #fff; font-size: 12.5px; line-height: 1.5; }
+.rep * { box-sizing: border-box; }
+.rep h1 { font-family: "Gowun Batang", "Nanum Myeongjo", serif; font-size: 24px; margin: 0 0 4px; }
+.rep h2 { font-size: 16px; margin: 22px 0 8px; padding-bottom: 4px; border-bottom: 2px solid #23584a; color: #23584a; break-after: avoid; page-break-after: avoid; }
+.rep h3 { font-size: 13.5px; margin: 14px 0 6px; break-after: avoid; page-break-after: avoid; }
+.rep .meta { color: #5f6b66; font-size: 12px; }
+.rep .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0 4px; }
+.rep .tile { border: 1px solid #d9ddd8; border-left: 4px solid #d9ddd8; border-radius: 6px; padding: 8px 10px; }
+.rep .tile b { display: block; font-size: 22px; line-height: 1.2; }
+.rep .tile span { color: #5f6b66; font-size: 11.5px; }
+.rep .tile.bad { border-left-color: #b23a2e; } .rep .tile.bad b { color: #b23a2e; }
+.rep .tile.warn { border-left-color: #a35f00; } .rep .tile.warn b { color: #a35f00; }
+.rep .tile.ok { border-left-color: #1f7a4d; } .rep .tile.ok b { color: #1f7a4d; }
+.rep .tile.co { border-left-color: #23584a; } .rep .tile.co b { color: #23584a; }
+.rep table { width: 100%; border-collapse: collapse; margin: 4px 0 8px; }
+.rep th, .rep td { border-bottom: 1px solid #d9ddd8; padding: 5px 6px; text-align: left; vertical-align: top; }
+.rep th { background: #eef1ee; font-size: 11.5px; color: #3d4844; }
+.rep tr { break-inside: avoid; page-break-inside: avoid; }
+.rep td.r, .rep th.r { text-align: right; }
+.rep td.nw, .rep th.nw { white-space: nowrap; }
+.rep .num { font-variant-numeric: tabular-nums; }
+.rep .e { color: #b23a2e; } .rep .w { color: #a35f00; } .rep .c { color: #5f6b66; } .rep .co { color: #23584a; }
+.rep .pill { display: inline-block; font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 99px; white-space: nowrap; }
+.rep .pill.bad { background: #f9e3e0; color: #b23a2e; } .rep .pill.warn { background: #fbefdc; color: #a35f00; } .rep .pill.ok { background: #e2f3e9; color: #1f7a4d; } .rep .pill.na { background: #e1ece7; color: #23584a; }
+.rep .lines div + div { margin-top: 2px; }
+.rep .note { background: #f3f4f1; border-left: 3px solid #23584a; padding: 8px 12px; margin: 8px 0; font-size: 12px; }
+.rep .card { border: 1px solid #d9ddd8; border-radius: 6px; padding: 10px 12px; margin: 0 0 8px; break-inside: avoid; page-break-inside: avoid; }
+.rep .card .hd { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.rep .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.rep .foot { margin-top: 24px; color: #5f6b66; font-size: 11px; border-top: 1px solid #d9ddd8; padding-top: 8px; }
+`;
+const escH = s => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+const RP = { open: false };
+function maskName(n, on) {
+  if (!on || !n) return n;
+  const a = [...n];
+  if (a.length <= 1) return n;
+  if (a.length === 2) return a[0] + "*";
+  return a[0] + "*".repeat(a.length - 2) + a[a.length - 1];
+}
+
+function reportScope() {
+  const g = $("rpGrade").value, c = $("rpCls").value;
+  return s => (!g || String(s.grade) === g) && (!c || `${s.grade}-${s.cls}` === c);
+}
+
+function buildReportBody(opt) {
+  const R = B.result, inScope = reportScope(), mk = n => maskName(n, opt.mask);
+  const sid = s => `${s.grade}-${s.cls}-${s.no}`;
+  const students = R.students.filter(inScope).sort((a, b) => a.grade - b.grade || a.cls - b.cls || a.no - b.no);
+  const n = { fail: 0, warn: 0, ok: 0 }; students.forEach(s => n[status(s)]++);
+  const diffs = students.map(s => ({ s, d: cdiff(s) })).filter(x => x.d);
+  const coopN = diffs.filter(x => x.d.coop.length).length;
+  const scopeTxt = ($("rpCls").value ? $("rpCls").selectedOptions[0].textContent : $("rpGrade").value ? `${$("rpGrade").value}학년 전체` : "전체 학년");
+  const d = new Date();
+  const when = `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}. ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const files = B.files.filter(f => f.grade != null && (!$("rpGrade").value || String(f.grade) === $("rpGrade").value) && (!$("rpCls").value || `${f.grade}-${f.cls}` === $("rpCls").value));
+  let h = "";
+  h += `<h1>이수 점검 결과</h1><div class="meta">광영고등학교 · ${escH(scopeTxt)} · ${students.length}명 · 작성 ${escH(when)}</div>`;
+  h += `<div class="meta">판정 기준: ${B.basis === "plan" ? "학점 배당표 학점" : "같은 학년 학생들이 가장 많이 이수한 학점(최빈값)"}보다 적게 이수하면 학점 미충족</div>`;
+
+  if (opt.summary) {
+    h += `<h2>요약</h2><div class="tiles">
+      <div class="tile bad"><b>${n.fail}</b><span>학점 미충족</span></div>
+      <div class="tile warn"><b>${n.warn}</b><span>과목 확인 필요</span></div>
+      <div class="tile ok"><b>${n.ok}</b><span>정상</span></div>
+      <div class="tile co"><b>${coopN}</b><span>공동교육과정·온라인 이수</span></div></div>`;
+    h += `<h3>검사한 파일과 범위</h3><table><tr><th>학년·반</th><th class="r">학생</th><th>적용 배당표</th><th>검사 범위</th><th>메모</th></tr>`;
+    files.forEach(f => {
+      const miss = f.policy ? f.policy.filter(s => !f.range.includes(s)) : [];
+      h += `<tr><td class="nw">${f.grade}학년 ${f.cls}반</td><td class="r num">${f.students.length}</td><td>${f.year}학년도 입학</td><td class="num">${f.range.join(", ")}</td><td class="c">${miss.length ? escH(miss.join(", ") + " 성적이 없어 제외") : ""}</td></tr>`;
+    });
+    h += `</table>`;
+    h += `<h3>학년별 기준 학점</h3><table><tr><th>학년</th><th>검사 범위</th><th>학기별 (최빈 / 배당표)</th><th class="r">합계 (최빈 / 배당표)</th></tr>`;
+    R.baselines.filter(x => !$("rpGrade").value || String(x.grade) === $("rpGrade").value).forEach(x => {
+      h += `<tr><td>${x.grade}학년 (${x.year} 입학)</td><td class="num">${x.range.join(", ")}</td><td class="num">${x.bySem.map(b => `${b.sem} ${b.peer} / ${b.plan ?? "–"}`).join(" · ")}</td><td class="r num"><b>${x.peerTotal} / ${x.planTotal ?? "–"}</b></td></tr>`;
+    });
+    h += `</table>`;
+    const cw = R.classwide.filter(c => (!$("rpGrade").value || String(c.grade) === $("rpGrade").value) && (!$("rpCls").value || `${c.grade}-${c.cls}` === $("rpCls").value));
+    if (cw.length) {
+      h += `<h3>반 전체 공통으로 빠진 과목</h3><div class="note">같은 반 80% 이상이 똑같이 빠진 과목이에요. 성적 미입력이거나 반별 편성 차이일 수 있으니 나이스에서 확인해 주세요.</div><table><tr><th>학년·반</th><th>학기</th><th>과목</th><th class="r">기록 없음</th></tr>`;
+      cw.sort((a, b) => a.grade - b.grade || a.cls - b.cls).forEach(c => { h += `<tr><td class="nw">${c.grade}학년 ${c.cls}반</td><td class="num">${escH(c.sem)}</td><td>${escH(c.text.replace(" 이수 기록 없음", ""))}</td><td class="r num">${c.n} / ${c.size}명</td></tr>`; });
+      h += `</table>`;
+    }
+  }
+
+  const stuTable = (list, title, empty) => {
+    let t = `<h2>${title} (${list.length}명)</h2>`;
+    if (!list.length) return t + `<div class="c">${empty}</div>`;
+    t += `<table><tr><th class="nw">학년·반·번호</th><th class="nw">이름</th><th class="r nw">이수 / 기준</th><th class="r">부족</th><th>내용</th></tr>`;
+    list.forEach(s => {
+      const lines = [];
+      const sh = short(s);
+      if (s.credit) s.credit.bySem.forEach(x => { const b = semBase(x); if (b != null && x.earned < b) lines.push(`<div class="e">${x.sem} 학기 ${x.earned}/${b}학점 (${b - x.earned}학점 부족)</div>`); });
+      s.result.issues.filter(i => i.sev === "e").forEach(i => lines.push(`<div class="${sh ? "c" : "w"}">${sh ? "원인 · " : ""}${escH(i.sem)} ${escH(i.text)}${i.classwide ? " [반 전체 공통]" : ""}</div>`));
+      s.result.issues.filter(i => i.sev === "w").forEach(i => lines.push(`<div class="w">${escH(i.sem)} ${escH(i.text)}</div>`));
+      const dl = diffLine(cdiff(s)); if (dl) lines.push(`<div class="co">${escH(dl)}</div>`);
+      t += `<tr><td class="num nw">${sid(s)}</td><td class="nw">${escH(mk(s.name))}${s.result.likelyTransfer ? ` <span class="pill warn">${s.result.transfer ? "전입" : "전입 추정"}</span>` : ""}</td><td class="r num nw">${s.result.credits} / ${base(s) ?? "–"}</td><td class="r num ${sh ? "e" : ""}">${sh ? "−" + sh : "0"}</td><td class="lines">${lines.join("") || '<span class="c">없음</span>'}</td></tr>`;
+    });
+    return t + `</table>`;
+  };
+  if (opt.fail) h += stuTable(students.filter(s => status(s) === "fail"), "학점 미충족 학생", "학점이 기준보다 적은 학생이 없어요.");
+  if (opt.warn) h += stuTable(students.filter(s => status(s) === "warn"), "과목 확인 필요 학생", "학점은 채웠지만 과목 구성이 다른 학생이 없어요.");
+
+  if (opt.coop) {
+    const agg = new Map();
+    diffs.forEach(({ s, d }) => d.coop.forEach(e => { const k = `${e.kind}|${e.name}|${e.sem}|${e.credit}`; if (!agg.has(k)) agg.set(k, { ...e, st: [] }); agg.get(k).st.push(s); }));
+    h += `<h2>시수 차이 원인 · 공동교육과정·온라인학교</h2>`;
+    const more = diffs.filter(x => x.d.diff > 0);
+    h += `<div class="meta">기준보다 많이 이수 ${more.length}명 · 공동교육과정·온라인 과목 때문 ${diffs.filter(x => x.d.cause === "coop").length}명 · 일부만 ${diffs.filter(x => x.d.cause === "mixed").length}명 · 그 밖의 이유 ${more.filter(x => x.d.cause === "other").length}명</div>`;
+    if (agg.size) {
+      h += `<h3>과목별</h3><table><tr><th class="nw">구분</th><th>과목</th><th class="nw">학기</th><th class="r nw">학점</th><th class="r nw">학생 수</th><th>학생</th></tr>`;
+      [...agg.values()].sort((a, b) => a.kind.localeCompare(b.kind) || b.st.length - a.st.length || a.name.localeCompare(b.name)).forEach(a => {
+        h += `<tr><td class="nw"><span class="pill na">${escH(a.kind)}</span></td><td style="min-width:110px">${escH(a.name)}</td><td class="num nw">${a.sem}</td><td class="r num nw">${a.credit}</td><td class="r num nw">${a.st.length}명</td><td class="c">${a.st.map(s => `${sid(s)} ${escH(mk(s.name))}`).join(", ")}</td></tr>`;
+      });
+      h += `</table>`;
+    } else h += `<div class="c">공동교육과정·온라인학교 과목을 들은 학생이 없어요.</div>`;
+    if (more.length) {
+      h += `<h3>기준보다 많이 이수한 학생</h3><table><tr><th class="nw">학년·반·번호</th><th class="nw">이름</th><th class="r nw">이수 / 기준</th><th>원인</th></tr>`;
+      more.forEach(({ s, d }) => { h += `<tr><td class="num nw">${sid(s)}</td><td class="nw">${escH(mk(s.name))}</td><td class="r num nw">${d.base + d.diff} / ${d.base}</td><td class="co">${escH(diffLine(d))}</td></tr>`; });
+      h += `</table>`;
+    }
+  }
+
+  if (opt.transfer) {
+    const L = (TV.list || []).filter(x => inScope(x.s));
+    h += `<h2>전입생 검증 (${L.length}명)</h2>`;
+    h += `<div class="note">비고 '전입학'이 있으면 확정, 없어도 같은 학년에서 3% 미만만 들은 과목(공동교육과정·온라인 제외)이 있거나 학점이 다른 과목이 2개 이상이면 전입 추정으로 봤어요. 대체 후보는 같은 교과(군) 과목이며, 인정 여부는 학교가 판단해요.</div>`;
+    if (!L.length) h += `<div class="c">다른 학생과 과목 구성이 유독 다른 학생이 없어요.</div>`;
+    L.forEach(x => {
+      const s = x.s, V = VERDICT[x.verdict];
+      const ev = [];
+      if (x.noted.length) ev.push(`비고 '전입학' 과목 ${x.noted.length}개 (${[...new Set(x.noted.map(e => e.sem))].join(", ")})${x.after.length ? ` → ${x.after.join(", ")}부터 우리 학교 이수` : ""}`);
+      x.rare.forEach(r => ev.push(`${r.e.name} ${r.e.credit}학점 (${r.e.sem}) · 학년에서 ${r.count}명만 이수`));
+      x.crDiff.forEach(r => ev.push(`${r.e.name} ${r.e.credit}학점 (${r.e.sem}) · 다른 학생은 ${r.usual}학점`));
+      const nd = x.needs.length ? x.needs.map(n => {
+        const st = n.covered ? ["co", "대체 가능"] : n.partial ? ["w", `${n.cr - n.subCr}학점 모자람`] : ["e", "대체 후보 없음"];
+        return `<div><b>${escH(n.label)}</b> <span class="c">${n.cr}학점 · ${escH(n.sem)}</span><br><span class="${st[0]}">→ ${n.subs.length ? escH(n.subs.map(e => `${e.name} ${e.credit}학점(${e.sem})`).join(", ")) + " · " : ""}${st[1]}</span></div>`;
+      }).join("") : `<div class="c">배당표 과목은 모두 이수했어요.</div>`;
+      const req = x.reqShort.length ? `<div class="e" style="margin-top:4px">필수 이수 학점 부족: ${escH(x.reqShort.map(r => `${r.label} ${r.earned}/${r.plan}`).join(", "))}</div>` : "";
+      h += `<div class="card"><div class="hd"><div><b>${escH(mk(s.name))}</b> <span class="c num">${s.grade}학년 ${s.cls}반 ${s.no}번</span> <span class="pill ${x.kind === "confirmed" ? "warn" : "na"}">${x.kind === "confirmed" ? "비고 '전입학'" : "전입 추정"}</span></div>
+        <div><span class="c num">이수 ${s.credit ? s.credit.earned : "–"} / 기준 ${s.credit ? s.credit.peerTotal : "–"}</span> <span class="pill ${V.c === "ok" ? "ok" : V.c === "bad" ? "bad" : "warn"}">${V.t}</span></div></div>
+        <div class="grid2"><div><div class="c" style="font-size:11px;font-weight:600">전입으로 본 근거</div>${ev.map(t => `<div>${escH(t)}</div>`).join("")}</div>
+        <div><div class="c" style="font-size:11px;font-weight:600">빠진 과목과 대체 후보</div>${nd}${req}</div></div></div>`;
+    });
+  }
+  h += `<div class="foot">이 보고서는 나이스 교과학습발달상황 파일과 학점 배당표로 자동 점검한 결과예요. 반 전체 공통 누락, 대체 이수 인정 여부는 담당 선생님이 확인해 주세요.${opt.mask ? " 학생 이름 일부를 가렸어요." : " 학생 개인정보가 들어 있으니 공유 범위에 주의해 주세요."}</div>`;
+  return h;
+}
+
+function buildReportHTML(opt) {
+  return `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>이수 점검 결과</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600;700&family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#fff}.page{max-width:900px;margin:0 auto;padding:32px 24px}@page{size:A4;margin:12mm}@media print{.page{padding:0;max-width:none}}${REP_CSS}</style></head>
+<body><div class="page rep">${buildReportBody(opt)}</div></body></html>`;
+}
+
+function reportOpts() {
+  return { summary: $("rpSum").checked, fail: $("rpFail").checked, warn: $("rpWarn").checked, coop: $("rpCoop").checked, transfer: $("rpTr").checked, mask: $("rpMask").checked };
+}
+function reportFileName(ext) {
+  const d = new Date(); const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  const sc = $("rpCls").value ? `_${$("rpCls").value.replace("-", "학년")}반` : $("rpGrade").value ? `_${$("rpGrade").value}학년` : "";
+  return `이수점검결과${sc}_${stamp}.${ext}`;
+}
+
+function openReport(from) {
+  if (!B.result) { toast("성적 파일을 먼저 올려 주세요."); return; }
+  const gs = $("rpGrade"); gs.innerHTML = "";
+  gs.append(el("option", { value: "" }, "전체 학년"));
+  [...new Set(B.result.students.map(s => s.grade))].sort().forEach(g => gs.append(el("option", { value: String(g), selected: String(g) === (from === "transfer" ? TV.grade : B.grade) }, `${g}학년`)));
+  fillRpCls(from === "batch" ? B.cls : "");
+  $("rpTr").checked = true;
+  if (from === "transfer") { ["rpSum", "rpFail", "rpWarn", "rpCoop"].forEach(id => $(id).checked = false); }
+  else { ["rpSum", "rpFail", "rpWarn", "rpCoop"].forEach(id => $(id).checked = true); }
+  $("rpMsg").textContent = B.downloads ? "" : "이 화면에서는 파일 저장을 쓸 수 없어요. claude.ai에서 이 페이지를 열어 주세요.";
+  $("rpHtml").disabled = $("rpPdf").disabled = !B.downloads;
+  $("rpBack").hidden = false;
+  $("rpGrade").focus();
+}
+function fillRpCls(sel) {
+  const g = $("rpGrade").value;
+  const cs = $("rpCls"); cs.innerHTML = "";
+  cs.append(el("option", { value: "" }, "전체 반"));
+  [...new Set(B.result.students.filter(s => !g || String(s.grade) === g).map(s => `${s.grade}-${s.cls}`))]
+    .sort((a, b) => a.split("-")[0] - b.split("-")[0] || a.split("-")[1] - b.split("-")[1])
+    .forEach(k => cs.append(el("option", { value: k, selected: k === sel }, `${k.split("-")[0]}학년 ${k.split("-")[1]}반`)));
+}
+function closeReport() { $("rpBack").hidden = true; }
+$("rpGrade").addEventListener("change", () => fillRpCls(""));
+$("rpCancel").addEventListener("click", closeReport);
+$("rpBack").addEventListener("click", e => { if (e.target === $("rpBack")) closeReport(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("rpBack").hidden) closeReport(); });
+$("repBtn").addEventListener("click", () => openReport("batch"));
+$("trRepBtn").addEventListener("click", () => openReport("transfer"));
+
+async function saveFile(filename, data, okMsg) {
+  try { await B.downloads.save({ filename, data }); toast(okMsg); closeReport(); }
+  catch (e) {
+    if (e && e.code === "declined") return;
+    $("rpMsg").textContent = e && e.code === "rate_limited" ? "저장 창이 이미 열려 있어요. 잠시 후 다시 눌러 주세요." : "저장하지 못했어요. 잠시 후 다시 시도해 주세요.";
+  }
+}
+
+$("rpHtml").addEventListener("click", async () => {
+  const o = reportOpts();
+  if (!Object.entries(o).some(([k, v]) => k !== "mask" && v)) { $("rpMsg").textContent = "넣을 항목을 하나 이상 골라 주세요."; return; }
+  await saveFile(reportFileName("html"), new Blob([buildReportHTML(o)], { type: "text/html" }), "HTML 보고서를 저장했어요.");
+});
+
+let h2pLoading = null;
+function loadHtml2pdf() {
+  if (window.html2pdf) return Promise.resolve();
+  if (h2pLoading) return h2pLoading;
+  h2pLoading = new Promise((res, rej) => {
+    const sc = document.createElement("script");
+    sc.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+    sc.onload = () => res(); sc.onerror = () => { h2pLoading = null; rej(new Error("PDF 모듈을 불러오지 못했어요.")); };
+    document.head.append(sc);
+  });
+  return h2pLoading;
+}
+
+$("rpPdf").addEventListener("click", async () => {
+  const o = reportOpts();
+  if (!Object.entries(o).some(([k, v]) => k !== "mask" && v)) { $("rpMsg").textContent = "넣을 항목을 하나 이상 골라 주세요."; return; }
+  const btn = $("rpPdf"); btn.disabled = true; $("rpMsg").textContent = "PDF를 만드는 중이에요. 학생이 많으면 몇 초 걸려요.";
+  try {
+    await loadHtml2pdf();
+    const html = `<div class="rep" style="width:100%;background:#fff"><style>${REP_CSS}</style>${buildReportBody(o)}</div>`;
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    const worker = window.html2pdf().set({
+      margin: [10, 10, 12, 10], image: { type: "jpeg", quality: 0.94 },
+      html2canvas: { scale: 2, backgroundColor: "#ffffff", useCORS: true, logging: false, scrollY: 0 },
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+      pagebreak: { mode: ["css", "legacy"], avoid: ["tr", ".card", ".tiles", ".note", "h2", "h3"] }
+    }).from(html, "string").toPdf();
+    const pdf = await worker.get("pdf");
+    const total = pdf.internal.getNumberOfPages();
+    for (let i = 1; i <= total; i++) { pdf.setPage(i); pdf.setFontSize(8); pdf.setTextColor(120); pdf.text(`${i} / ${total}`, 200, 291, { align: "right" }); }
+    const ab = pdf.output("arraybuffer");
+    await saveFile(reportFileName("pdf"), ab, "PDF 보고서를 저장했어요.");
+  } catch (e) {
+    $("rpMsg").textContent = (e && e.message) || "PDF를 만들지 못했어요. HTML로 저장한 뒤 브라우저에서 PDF로 인쇄해 주세요.";
+  } finally { btn.disabled = !B.downloads; }
+});
+
+</script>
+</body>
+</html>
